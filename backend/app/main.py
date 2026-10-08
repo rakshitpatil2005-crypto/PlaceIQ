@@ -10,7 +10,8 @@ from app.routers import (
     gap_router, 
     roadmap_router, 
     dashboard_router, 
-    interview_router
+    interview_router,
+    readiness_router
 )
 
 # Initialize database tables
@@ -34,6 +35,7 @@ app.include_router(gap_router.router, tags=["VTU Gap Analyzer"])
 app.include_router(roadmap_router.router, tags=["AI Roadmap"])
 app.include_router(dashboard_router.router, tags=["Dashboard"])
 app.include_router(interview_router.router, tags=["Mock Interview"])
+app.include_router(readiness_router.router, tags=["Readiness Score"])
 
 @app.get("/")
 def health_check():

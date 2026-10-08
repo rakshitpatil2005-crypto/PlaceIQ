@@ -1,0 +1,18 @@
+export const SUPPORTED_ROLES = [
+  'Embedded Systems Engineer',
+  'Backend Developer',
+  'Frontend Developer',
+  'Full Stack Developer',
+  'Data Analyst',
+  'ML Engineer',
+  'Data Scientist',
+  'DevOps Engineer',
+  'Cloud Engineer',
+  'Android Developer',
+  'iOS Developer',
+  'VLSI Engineer',
+  'Software Engineer',
+  'Python Developer',
+  'Java Developer',
+  'Cybersecurity Analyst',
+];

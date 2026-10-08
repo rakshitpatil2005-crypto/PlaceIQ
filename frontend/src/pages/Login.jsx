@@ -1,13 +1,21 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, User, BookOpen, GraduationCap, ArrowRight } from 'lucide-react';
+import { Mail, Lock, User, BookOpen, GraduationCap, ArrowRight, Sparkles, TrendingUp, Briefcase, ShieldCheck } from 'lucide-react';
 import api from '../api';
+import { SUPPORTED_ROLES } from '../data/roles';
 
 export default function Login() {
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', branch: 'CSE', semester: 5 });
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    branch: 'CSE',
+    semester: '5',
+    target_role: SUPPORTED_ROLES[0],
+  });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -15,11 +23,41 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setLoading(true);
+
     try {
-      const endpoint = isLogin ? '/auth/login' : '/auth/register';
-      const payload = isLogin ? { email: formData.email, password: formData.password } : formData;
-      const { data } = await api.post(endpoint, payload);
-      localStorage.setItem('token', data.access_token);
+      if (isLogin) {
+        const { data } = await api.post('/auth/login', {
+          email: formData.email,
+          password: formData.password,
+        });
+        localStorage.setItem('token', data.access_token);
+        navigate('/dashboard');
+        return;
+      }
+
+      const registerPayload = {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        branch: formData.branch,
+        semester: Number(formData.semester) || 1,
+      };
+
+      await api.post('/auth/register', registerPayload);
+
+      const loginRes = await api.post('/auth/login', {
+        email: formData.email,
+        password: formData.password,
+      });
+
+      localStorage.setItem('token', loginRes.data.access_token);
+
+      await api.put('/auth/me/profile', {
+        branch: formData.branch,
+        semester: Number(formData.semester) || 1,
+        target_role: formData.target_role,
+      });
+
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.detail || 'Authentication failed');
@@ -28,78 +66,159 @@ export default function Login() {
     }
   };
 
+  const visualFeatures = [
+    { icon: TrendingUp, title: 'Placement readiness', text: 'Track your real-time score' },
+    { icon: Briefcase, title: 'Tailored roadmap', text: 'AI built around your VTU gaps' },
+    { icon: ShieldCheck, title: 'Interview confidence', text: 'Practice with structured feedback' },
+  ];
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 to-emerald-100 p-4">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100"
-      >
-        <div className="p-8">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 bg-brand-100 rounded-xl mb-4 text-brand-600">
-              <GraduationCap size={28} />
-            </div>
-            <h2 className="text-3xl font-bold text-gray-900">PlaceIQ</h2>
-            <p className="text-gray-500 mt-2">{isLogin ? 'Welcome back, future engineer.' : 'Start your placement journey.'}</p>
+    <div className="auth-shell">
+      <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="auth-panel">
+        <div className="auth-visual">
+          <div className="auth-badge">
+            <Sparkles size={14} />
+            Built for VTU 2025
           </div>
 
-          {error && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg text-center">
-              {error}
-            </motion.div>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginTop: '1.25rem' }}>
+            <div className="brand-mark" style={{ width: '3.1rem', height: '3.1rem' }}>
+              <GraduationCap size={24} />
+            </div>
+            <span style={{ fontSize: '1.7rem', fontWeight: 800, letterSpacing: '-0.05em', color: '#0f172a' }}>PlaceIQ</span>
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <AnimatePresence mode="popLayout">
-              {!isLogin && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="space-y-4 overflow-hidden"
-                >
-                  <div className="relative">
-                    <User className="absolute left-3 top-3 text-gray-400" size={20} />
-                    <input type="text" placeholder="Full Name" required={!isLogin} className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" onChange={e => setFormData({...formData, name: e.target.value})} />
-                  </div>
-                  <div className="flex gap-4">
-                    <div className="relative flex-1">
-                      <BookOpen className="absolute left-3 top-3 text-gray-400" size={20} />
-                      <select className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 appearance-none bg-white" onChange={e => setFormData({...formData, branch: e.target.value})}>
-                        <option value="CSE">CSE</option>
-                        <option value="ISE">ISE</option>
-                        <option value="ECE">ECE</option>
+          <h1>Turn your degree into a placement advantage.</h1>
+          <p>
+            Discover missing skills, build your roadmap, practice interviews, and monitor your readiness with a premium placement intelligence dashboard built for engineering students.
+          </p>
+
+          <div className="auth-feature-grid">
+            {visualFeatures.map(({ icon: Icon, title, text }) => (
+              <div key={title} className="auth-feature">
+                <div className="auth-feature-icon">
+                  <Icon size={18} />
+                </div>
+                <div>
+                  <strong>{title}</strong>
+                  <span>{text}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="auth-card">
+          <div className="auth-card-inner">
+            <div className="text-center mb-6">
+              <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 shadow-sm mb-4">
+                <GraduationCap size={28} />
+              </div>
+              <h2 className="text-3xl font-black tracking-tight text-slate-900">
+                {isLogin ? 'Welcome back' : 'Create account'}
+              </h2>
+              <p className="mt-2 text-sm text-slate-500">
+                {isLogin ? 'Sign in to continue your placement journey.' : 'Set up your profile and target role to personalize your roadmap.'}
+              </p>
+            </div>
+
+            {error && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="auth-error mb-4">
+                <span>⚠</span>
+                <span>{error}</span>
+              </motion.div>
+            )}
+
+            <form onSubmit={handleSubmit} className="auth-form">
+              <AnimatePresence mode="wait">
+                {!isLogin && (
+                  <motion.div
+                    key="signup"
+                    initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                    animate={{ opacity: 1, height: 'auto', marginTop: 0 }}
+                    exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="form-field">
+                      <User size={18} />
+                      <input
+                        type="text"
+                        placeholder="Full name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-row" style={{ marginTop: '0.9rem' }}>
+                      <div className="form-field">
+                        <BookOpen size={18} />
+                        <select value={formData.branch} onChange={(e) => setFormData({ ...formData, branch: e.target.value })}>
+                          <option value="CSE">CSE</option>
+                          <option value="ISE">ISE</option>
+                          <option value="ECE">ECE</option>
+                        </select>
+                      </div>
+
+                      <div className="form-field">
+                        <input
+                          type="number"
+                          min="1"
+                          max="8"
+                          value={formData.semester}
+                          placeholder="Semester"
+                          onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-field" style={{ marginTop: '0.9rem' }}>
+                      <GraduationCap size={18} />
+                      <select value={formData.target_role} onChange={(e) => setFormData({ ...formData, target_role: e.target.value })}>
+                        {SUPPORTED_ROLES.map((role) => (
+                          <option key={role} value={role}>{role}</option>
+                        ))}
                       </select>
                     </div>
-                    <div className="relative flex-1">
-                      <input type="number" min="1" max="8" placeholder="Sem (1-8)" required={!isLogin} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" onChange={e => setFormData({...formData, semester: parseInt(e.target.value)})} />
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 text-gray-400" size={20} />
-              <input type="email" placeholder="Email Address" required className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" onChange={e => setFormData({...formData, email: e.target.value})} />
+              <div className="form-field">
+                <Mail size={18} />
+                <input
+                  type="email"
+                  placeholder="Email address"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <Lock size={18} />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required
+                />
+              </div>
+
+              <button type="submit" disabled={loading} className="btn-modern auth-cta">
+                {loading ? 'Processing...' : isLogin ? 'Sign in' : 'Create account'}
+                {!loading && <ArrowRight size={18} />}
+              </button>
+            </form>
+
+            <div className="auth-secondary">
+              <span>{isLogin ? 'Need an account?' : 'Already a member?'}</span>{' '}
+              <button type="button" onClick={() => setIsLogin(!isLogin)}>
+                {isLogin ? 'Register now' : 'Sign in'}
+              </button>
             </div>
-
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
-              <input type="password" placeholder="Password" required className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" onChange={e => setFormData({...formData, password: e.target.value})} />
-            </div>
-
-            <button type="submit" disabled={loading} className="w-full btn-modern flex items-center justify-center gap-2 mt-6">
-              {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
-              {!loading && <ArrowRight size={18} />}
-            </button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <button onClick={() => setIsLogin(!isLogin)} className="text-brand-600 hover:text-brand-700 font-medium text-sm transition-colors">
-              {isLogin ? "Don't have an account? Register" : "Already have an account? Sign In"}
-            </button>
           </div>
         </div>
       </motion.div>

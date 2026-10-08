@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Target, CheckCircle2, AlertCircle, XCircle } from 'lucide-react';
+import { Target, CheckCircle2, AlertCircle, XCircle, Sparkles, ArrowRight } from 'lucide-react';
 import api from '../api';
 
 export default function SkillGap() {
@@ -9,7 +9,6 @@ export default function SkillGap() {
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
 
-  // Auto-fetch if there's a stored target role or just default to selection
   const analyzeGap = async () => {
     setLoading(true);
     setError('');
@@ -24,22 +23,19 @@ export default function SkillGap() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-6xl mx-auto space-y-6">
-      
-      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+    <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+      <div className="page-header">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <Target className="text-brand-500" /> Target Role Analysis
-          </h2>
-          <p className="text-sm text-gray-500">Select your dream role to generate a VTU-aware skill gap report.</p>
+          <div className="soft-label mb-3">
+            <Target size={12} />
+            Skill intelligence
+          </div>
+          <h2 className="page-title">Target role analysis</h2>
+          <p className="page-subtitle mt-2">Select your ideal role to compare your profile against VTU curriculum coverage and missing placement skills.</p>
         </div>
-        
-        <div className="flex w-full md:w-auto gap-2">
-          <select 
-            value={role} 
-            onChange={(e) => setRole(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none bg-gray-50"
-          >
+
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+          <select value={role} onChange={(e) => setRole(e.target.value)} className="input-modern min-w-[240px]">
             <option value="Embedded Systems Engineer">Embedded Systems Engineer</option>
             <option value="Backend Developer">Backend Developer</option>
             <option value="Frontend Developer">Frontend Developer</option>
@@ -48,51 +44,57 @@ export default function SkillGap() {
             <option value="ML Engineer">ML Engineer</option>
           </select>
           <button onClick={analyzeGap} disabled={loading} className="btn-modern whitespace-nowrap">
-            {loading ? 'Analyzing...' : 'Run Gap Analysis'}
+            {loading ? 'Analyzing...' : 'Run gap analysis'}
+            {!loading && <ArrowRight size={16} />}
           </button>
         </div>
       </div>
 
-      {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-center border border-red-100">{error}</div>}
+      {error && (
+        <div className="auth-error">
+          <AlertCircle size={18} />
+          <span>{error}</span>
+        </div>
+      )}
 
       {report && (
         <div className="space-y-6">
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center">
-            <h3 className="text-lg font-semibold text-gray-500">Overall Match for {report.target_role}</h3>
-            <div className="text-6xl font-black text-brand-600 mt-2">{report.skill_match_pct}%</div>
+          <div className="panel-card text-center">
+            <div className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">Overall match for {report.target_role}</div>
+            <div className="mt-3 text-6xl font-black tracking-tight text-brand-600">{report.skill_match_pct}%</div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* VTU Syllabus Column */}
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-              <h3 className="font-bold text-gray-900 flex items-center gap-2 mb-4 border-b pb-2">
-                <CheckCircle2 className="text-blue-500" /> VTU Syllabus / Found
-              </h3>
-              <ul className="space-y-3">
+          <div className="grid gap-6 md:grid-cols-3">
+            <div className="panel-card md:col-span-1">
+              <div className="mb-4 flex items-center gap-2 text-slate-900">
+                <CheckCircle2 className="text-blue-500" size={20} />
+                <h3 className="text-lg font-bold">VTU coverage & resume fit</h3>
+              </div>
+              <div className="space-y-3">
                 {report.covered_by_syllabus?.map((item, i) => (
-                  <li key={i} className="flex flex-col bg-blue-50/50 p-2 rounded-lg">
-                    <span className="font-medium text-blue-900">{item.skill}</span>
-                    <span className="text-xs text-blue-600 uppercase font-semibold">{item.status}</span>
-                  </li>
+                  <div key={i} className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+                    <div className="font-semibold text-blue-900">{item.skill}</div>
+                    <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-blue-700">{item.status}</div>
+                  </div>
                 ))}
                 {report.from_resume?.map((skill, i) => (
-                  <li key={`res-${i}`} className="flex flex-col bg-green-50 p-2 rounded-lg">
-                    <span className="font-medium text-green-900">{skill}</span>
-                    <span className="text-xs text-green-600 uppercase font-semibold">Self-Taught (On Resume)</span>
-                  </li>
+                  <div key={`resume-${i}`} className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3">
+                    <div className="font-semibold text-emerald-900">{skill}</div>
+                    <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-700">Resume match</div>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
 
-            {/* Missing Column */}
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm md:col-span-2">
-              <h3 className="font-bold text-gray-900 flex items-center gap-2 mb-4 border-b pb-2">
-                <XCircle className="text-red-500" /> Critical Missing Skills
-              </h3>
-              <p className="text-sm text-gray-500 mb-4">These skills are required for the role but were neither in your college syllabus nor on your resume.</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="panel-card md:col-span-2">
+              <div className="mb-4 flex items-center gap-2 text-slate-900">
+                <XCircle className="text-red-500" size={20} />
+                <h3 className="text-lg font-bold">Critical missing skills</h3>
+              </div>
+              <p className="mb-4 text-sm text-slate-500">These are the gaps that still need attention for this target role.</p>
+              <div className="grid gap-3 sm:grid-cols-2">
                 {report.missing?.map((item, i) => (
-                  <div key={i} className="flex items-center gap-3 bg-red-50 border border-red-100 p-3 rounded-lg">
+                  <div key={i} className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 p-3">
                     <AlertCircle size={18} className="text-red-500" />
                     <span className="font-medium text-red-900">{item.skill}</span>
                   </div>
@@ -100,6 +102,16 @@ export default function SkillGap() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {!report && !error && (
+        <div className="panel-card text-center text-slate-500">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
+            <Sparkles size={24} />
+          </div>
+          <p className="mt-4 text-lg font-semibold text-slate-700">No report generated yet</p>
+          <p className="mt-1 text-sm text-slate-500">Choose a target role and run analysis to build your skills gap report.</p>
         </div>
       )}
     </motion.div>

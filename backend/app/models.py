@@ -69,3 +69,15 @@ class ReadinessScore(Base):
     interview_score = Column(Float, default=0)
     total = Column(Float, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ReadinessScoreHistory(Base):
+    __tablename__ = "readiness_score_history"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    resume_score = Column(Float, default=0)
+    skill_score = Column(Float, default=0)
+    roadmap_score = Column(Float, default=0)
+    interview_score = Column(Float, default=0)
+    total = Column(Float, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
