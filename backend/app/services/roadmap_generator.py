@@ -143,14 +143,8 @@ def _validate_roadmap_output(raw) -> dict:
                 desc = ""
 
             if desc:
-                # Prepend tag if missing for clear visual differentiation
-                if not any(tag in desc for tag in ["[REVISE]", "[LEARN]", "[PROJECT", "[MOCK", "[PRACTICE]", "[STUDY]"]):
-                    if i in (1, 2):
-                        desc = f"[REVISE] {desc}"
-                    elif i in (3, 4, 5):
-                        desc = f"[LEARN] {desc}"
-                    else:
-                        desc = f"[PROJECT & RESUME] {desc}"
+                # Preserve the supplied task text exactly; only fallback-generated tasks
+                # should receive structured type tags in the deterministic generator.
                 validated_tasks.append({"task": desc, "completed": comp})
 
         # Ensure at least 2 tasks per week
