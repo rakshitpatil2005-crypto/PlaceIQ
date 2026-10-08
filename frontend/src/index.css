@@ -1,0 +1,19 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+}
+
+/* Custom animated gradient for modern buttons */
+.btn-modern {
+  @apply bg-gradient-to-r from-brand-500 to-emerald-600 text-white px-6 py-2 rounded-lg font-medium shadow-md transition-all duration-300 hover:shadow-lg hover:from-brand-600 hover:to-emerald-700 active:scale-95;
+}
+
+.card-hover {
+  @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-xl bg-white rounded-xl border border-gray-100 p-6 shadow-sm;
+}

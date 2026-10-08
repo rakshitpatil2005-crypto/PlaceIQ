@@ -1,0 +1,89 @@
+{
+  "CSE": {
+    "3": [
+      {"subject": "Data Structures and Applications", "skills": ["Data Structures", "C", "Algorithms"]},
+      {"subject": "Object Oriented Programming with Java", "skills": ["Java", "Object-Oriented Programming"]},
+      {"subject": "Digital Design and Computer Organization", "skills": ["Digital Logic", "Circuits"]}
+    ],
+    "4": [
+      {"subject": "Design and Analysis of Algorithms", "skills": ["Algorithms", "Problem Solving", "C++"]},
+      {"subject": "Operating Systems", "skills": ["Operating Systems", "Linux", "Processes"]},
+      {"subject": "Microcontrollers and Embedded Systems", "skills": ["Microcontrollers", "Embedded Systems", "C"]}
+    ],
+    "5": [
+      {"subject": "Database Management Systems", "skills": ["SQL", "Database Design", "DBMS"]},
+      {"subject": "Computer Networks", "skills": ["Computer Networks", "TCP/IP", "Sockets"]},
+      {"subject": "Theory of Computation & Automata", "skills": ["Theory of Computation"]}
+    ],
+    "6": [
+      {"subject": "Full Stack Web Development", "skills": ["HTML", "CSS", "JavaScript", "React", "Node.js"]},
+      {"subject": "Software Engineering & Agile Practices", "skills": ["Git", "Agile", "Software Design"]},
+      {"subject": "Artificial Intelligence", "skills": ["Artificial Intelligence", "Python", "Problem Solving"]}
+    ],
+    "7": [
+      {"subject": "Machine Learning & Data Science", "skills": ["Python", "Machine Learning", "Data Analysis"]},
+      {"subject": "Cloud Computing & DevOps", "skills": ["AWS", "Cloud", "Distributed Systems", "Docker", "DevOps"]}
+    ],
+    "8": [
+      {"subject": "Cybersecurity & Cryptography", "skills": ["Cybersecurity", "Computer Networks"]},
+      {"subject": "Major Project & Industry Internship", "skills": ["Software Design", "Git", "Problem Solving"]}
+    ]
+  },
+  "ISE": {
+    "3": [
+      {"subject": "Data Structures and Applications", "skills": ["Data Structures", "C", "Algorithms"]},
+      {"subject": "Object Oriented Programming with C++", "skills": ["C++", "Object-Oriented Programming"]},
+      {"subject": "Digital Logic and System Design", "skills": ["Digital Logic", "Circuits"]}
+    ],
+    "4": [
+      {"subject": "Design and Analysis of Algorithms", "skills": ["Algorithms", "Problem Solving", "C++"]},
+      {"subject": "Operating Systems", "skills": ["Operating Systems", "Linux", "Shell Scripting"]},
+      {"subject": "Discrete Mathematical Structures", "skills": ["Mathematics", "Problem Solving"]}
+    ],
+    "5": [
+      {"subject": "Database Management Systems", "skills": ["SQL", "Database Design", "DBMS"]},
+      {"subject": "Computer Networks", "skills": ["Computer Networks", "TCP/IP", "Sockets"]},
+      {"subject": "Information Systems & Security", "skills": ["Cybersecurity", "Computer Networks"]}
+    ],
+    "6": [
+      {"subject": "Web Technologies & REST APIs", "skills": ["HTML", "CSS", "JavaScript", "REST APIs", "Node.js"]},
+      {"subject": "Data Mining & Analytics", "skills": ["Data Analysis", "SQL", "Python"]},
+      {"subject": "Software Architecture & Design", "skills": ["Software Design", "Git", "Agile"]}
+    ],
+    "7": [
+      {"subject": "Machine Learning & Applications", "skills": ["Python", "Machine Learning", "Statistics"]},
+      {"subject": "Big Data Analytics & Cloud", "skills": ["Cloud", "AWS", "Distributed Systems", "Data Analysis"]}
+    ],
+    "8": [
+      {"subject": "Information Security & Compliance", "skills": ["Cybersecurity", "Computer Networks"]},
+      {"subject": "Major Project & Industrial Training", "skills": ["Software Design", "Git", "Problem Solving"]}
+    ]
+  },
+  "ECE": {
+    "3": [
+      {"subject": "Network Theory & Analysis", "skills": ["Circuit Analysis", "Network Theorems"]},
+      {"subject": "Electronic Devices & Circuits", "skills": ["Semiconductors", "Diodes", "Transistors"]},
+      {"subject": "Digital System Design", "skills": ["Digital Logic", "Circuits"]}
+    ],
+    "4": [
+      {"subject": "Microcontrollers & Applications", "skills": ["Embedded Systems", "Assembly", "C", "Microcontrollers"]},
+      {"subject": "Signals and Systems", "skills": ["Signal Processing", "MATLAB"]}
+    ],
+    "5": [
+      {"subject": "IoT & Sensor Applications", "skills": ["IoT", "Sensors", "Wireless Communication"]},
+      {"subject": "HDL & FPGA Design", "skills": ["VHDL", "Verilog", "Digital Logic"]}
+    ],
+    "6": [
+      {"subject": "Embedded Controller Lab & RTOS", "skills": ["ARM", "Keil", "Embedded Systems", "RTOS"]},
+      {"subject": "VLSI Design & CMOS", "skills": ["VLSI", "CMOS", "Verilog"]}
+    ],
+    "7": [
+      {"subject": "Computer Communication Networks", "skills": ["Networking", "Protocols", "TCP/IP"]},
+      {"subject": "Automotive Electronics & CAN", "skills": ["CAN Bus", "Automotive Systems"]}
+    ],
+    "8": [
+      {"subject": "Wireless & Satellite Communication", "skills": ["Wireless Communication", "Signal Processing"]},
+      {"subject": "Major Project & Technical Internship", "skills": ["Embedded Systems", "Problem Solving"]}
+    ]
+  }
+}

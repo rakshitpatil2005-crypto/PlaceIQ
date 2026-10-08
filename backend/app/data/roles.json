@@ -1,0 +1,152 @@
+{
+  "Embedded Systems Engineer": {
+    "C": 3,
+    "C++": 3,
+    "Embedded Systems": 3,
+    "IoT": 2,
+    "PCB Design": 2,
+    "Python": 1,
+    "VHDL": 2,
+    "Microcontrollers": 2,
+    "RTOS": 2
+  },
+  "Backend Developer": {
+    "SQL": 3,
+    "REST APIs": 3,
+    "Python": 3,
+    "Data Structures": 3,
+    "System Design": 2,
+    "Git": 2,
+    "Operating Systems": 2,
+    "Database Design": 2
+  },
+  "Frontend Developer": {
+    "HTML": 2,
+    "CSS": 2,
+    "JavaScript": 3,
+    "React": 3,
+    "Git": 2,
+    "TypeScript": 2
+  },
+  "Full Stack Developer": {
+    "JavaScript": 3,
+    "React": 3,
+    "Node.js": 3,
+    "SQL": 2,
+    "REST APIs": 3,
+    "Git": 2,
+    "Data Structures": 2,
+    "TypeScript": 2
+  },
+  "Data Analyst": {
+    "Python": 3,
+    "SQL": 3,
+    "Excel": 2,
+    "PowerBI": 2,
+    "Data Analysis": 3,
+    "Statistics": 2,
+    "Pandas": 2,
+    "NumPy": 2
+  },
+  "ML Engineer": {
+    "Python": 3,
+    "Machine Learning": 3,
+    "Deep Learning": 3,
+    "Mathematics": 2,
+    "Data Structures": 2,
+    "SQL": 2,
+    "Pandas": 2,
+    "NumPy": 2
+  },
+  "Data Scientist": {
+    "Python": 3,
+    "Machine Learning": 3,
+    "Statistics": 3,
+    "SQL": 2,
+    "Data Analysis": 3,
+    "Deep Learning": 2,
+    "Pandas": 2,
+    "Data Science": 3
+  },
+  "DevOps Engineer": {
+    "Linux": 3,
+    "Docker": 3,
+    "Kubernetes": 3,
+    "Git": 2,
+    "AWS": 2,
+    "DevOps": 3,
+    "Shell Scripting": 2,
+    "Python": 2
+  },
+  "Cloud Engineer": {
+    "AWS": 3,
+    "Azure": 2,
+    "GCP": 2,
+    "Cloud": 3,
+    "Docker": 2,
+    "Kubernetes": 2,
+    "Linux": 2,
+    "Python": 2
+  },
+  "Android Developer": {
+    "Android Development": 3,
+    "Java": 3,
+    "Kotlin": 3,
+    "REST APIs": 2,
+    "SQL": 2,
+    "Git": 2,
+    "Object-Oriented Programming": 2
+  },
+  "iOS Developer": {
+    "iOS Development": 3,
+    "Swift": 3,
+    "REST APIs": 2,
+    "SQL": 2,
+    "Git": 2,
+    "Object-Oriented Programming": 2
+  },
+  "VLSI Engineer": {
+    "Verilog": 3,
+    "VHDL": 3,
+    "VLSI": 3,
+    "Digital Logic": 2,
+    "C": 2,
+    "MATLAB": 2
+  },
+  "Software Engineer": {
+    "Data Structures": 3,
+    "Algorithms": 3,
+    "Object-Oriented Programming": 3,
+    "System Design": 3,
+    "SQL": 2,
+    "Git": 2,
+    "Operating Systems": 2,
+    "Computer Networks": 2
+  },
+  "Python Developer": {
+    "Python": 3,
+    "Django": 2,
+    "Flask": 2,
+    "REST APIs": 3,
+    "SQL": 2,
+    "Git": 2,
+    "Data Structures": 2
+  },
+  "Java Developer": {
+    "Java": 3,
+    "Spring Boot": 3,
+    "SQL": 2,
+    "Data Structures": 3,
+    "REST APIs": 3,
+    "Git": 2,
+    "Object-Oriented Programming": 3
+  },
+  "Cybersecurity Analyst": {
+    "Cybersecurity": 3,
+    "Networking": 3,
+    "Linux": 3,
+    "Python": 2,
+    "Operating Systems": 2,
+    "Computer Networks": 3
+  }
+}
