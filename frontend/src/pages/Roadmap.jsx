@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Map, CheckCircle2, Circle, Loader, AlertCircle, BookOpen, Sparkles, CheckSquare } from 'lucide-react';
+import { Map, CheckCircle2, Circle, Loader, AlertCircle, Sparkles, CheckSquare } from 'lucide-react';
 import api from '../api';
+import RoadmapLearningLink from '../components/RoadmapLearningLink.js';
+import { getAdaptivePriorityDisplay } from '../utils/adaptivePriority.js';
 
 export default function Roadmap() {
   const [roadmap, setRoadmap] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [adapting, setAdapting] = useState(false);
+  const [adaptationMessage, setAdaptationMessage] = useState('');
   const [error, setError] = useState('');
+  const [learningMappings, setLearningMappings] = useState({});
+  const [mappingError, setMappingError] = useState('');
   const [selectedRole, setSelectedRole] = useState('Embedded Systems Engineer');
 
   const ROLES = [
@@ -23,18 +29,51 @@ export default function Roadmap() {
     "Cybersecurity Analyst"
   ];
 
-  useEffect(() => {
-    fetchRoadmap();
-  }, []);
+  const applyLearningMappings = (data) => {
+    const mappings = {};
+    (data.mappings || []).forEach(({ week_index, task_index, skill_id }) => {
+      mappings[`${week_index}-${task_index}`] = skill_id;
+    });
+    setLearningMappings(mappings);
+    setMappingError('');
+  };
 
-  const fetchRoadmap = async () => {
+  const fetchLearningMappings = async () => {
     try {
-      const { data } = await api.get('/roadmap');
-      if (data) setRoadmap(data);
-    } catch (err) {
-      console.error("No existing roadmap found.");
+      const { data } = await api.get('/learning/roadmap-mappings');
+      applyLearningMappings(data);
+    } catch {
+      setLearningMappings({});
+      setMappingError('Learning links could not be loaded. Your roadmap is still available.');
     }
   };
+
+  useEffect(() => {
+    let active = true;
+    const loadRoadmap = async () => {
+      const [roadmapResult, mappingsResult] = await Promise.allSettled([
+        api.get('/roadmap'),
+        api.get('/learning/roadmap-mappings'),
+      ]);
+      if (!active) return;
+
+      if (roadmapResult.status === 'fulfilled') {
+        if (roadmapResult.value.data) setRoadmap(roadmapResult.value.data);
+      } else {
+        console.error('Failed to load roadmap.', roadmapResult.reason);
+      }
+
+      if (mappingsResult.status === 'fulfilled') {
+        applyLearningMappings(mappingsResult.value.data);
+      } else {
+        setMappingError('Learning links could not be loaded. Your roadmap is still available.');
+      }
+    };
+    loadRoadmap();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -42,10 +81,27 @@ export default function Roadmap() {
     try {
       const { data } = await api.post('/roadmap/generate', { target_role: selectedRole });
       setRoadmap(data);
+      setLearningMappings({});
+      await fetchLearningMappings();
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to generate roadmap.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAdapt = async () => {
+    setAdapting(true);
+    setError('');
+    setAdaptationMessage('');
+    try {
+      const { data } = await api.post('/roadmap/adapt');
+      setRoadmap(data.roadmap);
+      setAdaptationMessage(data.message);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to adapt roadmap priorities.');
+    } finally {
+      setAdapting(false);
     }
   };
 
@@ -68,8 +124,13 @@ export default function Roadmap() {
       });
     } catch (err) {
       console.error("Failed to save task completion:", err);
-      // Revert on API error
-      fetchRoadmap();
+      try {
+        const { data } = await api.get('/roadmap');
+        setRoadmap(data);
+      } catch (refreshError) {
+        console.error('Failed to refresh roadmap after a task update error.', refreshError);
+        setRoadmap(roadmap);
+      }
     }
   };
 
@@ -136,8 +197,21 @@ export default function Roadmap() {
           <button onClick={handleGenerate} disabled={loading} className="btn-modern whitespace-nowrap min-w-[160px] flex justify-center items-center gap-2">
             {loading ? <Loader className="animate-spin" size={20} /> : <><Sparkles size={18} /> Generate Plan</>}
           </button>
+          <button
+            onClick={handleAdapt}
+            disabled={adapting || loading || !roadmap}
+            className="whitespace-nowrap min-h-11 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-800 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {adapting ? 'Adapting…' : 'Adapt future priorities'}
+          </button>
         </div>
       </div>
+
+      {adaptationMessage && (
+        <p className="rounded-xl border border-brand-100 bg-brand-50 p-3 text-sm text-brand-800" role="status">
+          {adaptationMessage}
+        </p>
+      )}
 
       {error && (
         <div className="bg-red-50 text-red-600 p-4 rounded-xl flex items-center gap-2 border border-red-100">
@@ -214,6 +288,33 @@ export default function Roadmap() {
                           {cleanTaskText(task.task)}
                         </span>
                       </div>
+                      {learningMappings[`${wIdx}-${tIdx}`] && (
+                        <RoadmapLearningLink skillId={learningMappings[`${wIdx}-${tIdx}`]} />
+                      )}
+                      {!task.completed && task.adaptive && (
+                        (() => {
+                          const priorityDisplay = getAdaptivePriorityDisplay(
+                            task.adaptive.evidence_category,
+                          );
+                          if (!priorityDisplay) return null;
+                          return (
+                            <div className={`mt-2 space-y-1 rounded-lg border p-3 text-xs ${priorityDisplay.className}`}>
+                              <p className="font-semibold">
+                                Priority {task.adaptive.priority}: {priorityDisplay.label}
+                              </p>
+                              <p>{task.adaptive.reason}</p>
+                              {task.adaptive.evidence?.map((item) => (
+                                <p key={item}>{item}</p>
+                              ))}
+                              {task.adaptive.context?.vtu_subjects?.length > 0 && (
+                                <p>
+                                  VTU context: {task.adaptive.context.vtu_subjects.join(', ')}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()
+                      )}
                     </div>
                   </div>
                 ))}
@@ -221,6 +322,10 @@ export default function Roadmap() {
             </motion.div>
           ))}
         </div>
+      )}
+
+      {mappingError && (
+        <p className="text-sm text-amber-700" role="status">{mappingError}</p>
       )}
     </motion.div>
   );

@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -9,6 +9,7 @@ from app.models import User, Resume, GapReport, InterviewSession
 from app.services.gap_analyzer import analyze_skill_gap
 from app.services.interview_generator import generate_mock_interview
 from app.services.interview_evaluator import evaluate_candidate_answer
+from app.services.question_support import QuestionGenerationUnavailable
 from app.services.skill_extractor import normalize_skill
 
 router = APIRouter()
@@ -80,8 +81,24 @@ def _infer_weak_skills(session: InterviewSession, db: Session, current_user: Use
             continue
 
         q_idx = record.get("question_index")
-        q_text = record.get("question") or (questions[q_idx] if isinstance(q_idx, int) and 0 <= q_idx < len(questions) else "")
+        q_text = record.get("question") or (
+            questions[q_idx].get("question", "")
+            if isinstance(q_idx, int)
+            and 0 <= q_idx < len(questions)
+            and isinstance(questions[q_idx], dict)
+            else questions[q_idx]
+            if isinstance(q_idx, int) and 0 <= q_idx < len(questions)
+            else ""
+        )
         if not q_text:
+            continue
+
+        skill = record.get("skill")
+        if isinstance(skill, str) and skill.strip():
+            canonical = normalize_skill(skill)
+            if canonical and canonical.lower() not in seen:
+                seen.add(canonical.lower())
+                weak.append(canonical)
             continue
 
         q_lower = str(q_text).lower()
@@ -114,9 +131,29 @@ def _compute_interview_completion(session: InterviewSession, db: Session, curren
     if not scores:
         return {"completed": False, "overall_score": 0.0, "weak_skills": [], "final_feedback": "Interview is in progress. Complete all questions to receive a final score."}
 
-    completed = len(scores) >= len(questions)
-    avg_score = sum(int(item.get("score_out_of_10", 0)) for item in scores if isinstance(item, dict)) / len(scores)
-    overall_score = round(float(avg_score * 10), 2)
+    submitted = {
+        item.get("question_index"): item
+        for item in scores
+        if isinstance(item, dict) and isinstance(item.get("question_index"), int)
+    }
+    completed = all(index in submitted for index in range(len(questions)))
+    technical_scores = [
+        float(submitted[index].get("score_out_of_10", 0))
+        for index in range(min(5, len(questions)))
+        if index in submitted
+    ]
+    hr_scores = [
+        float(submitted[index].get("score_out_of_10", 0))
+        for index in range(5, min(8, len(questions)))
+        if index in submitted
+    ]
+    if completed and len(technical_scores) == 5 and len(hr_scores) == 3:
+        technical_pct = sum(technical_scores) / 5 * 10
+        hr_pct = sum(hr_scores) / 3 * 10
+        # Equal component weighting: technical MCQs 50%, evaluated HR responses 50%.
+        overall_score = round((technical_pct * 0.5) + (hr_pct * 0.5), 2)
+    else:
+        overall_score = 0.0
     weak_skills = _infer_weak_skills(session, db, current_user)
 
     if completed:
@@ -138,6 +175,25 @@ def _compute_interview_completion(session: InterviewSession, db: Session, curren
         "weak_skills": weak_skills,
         "final_feedback": final_feedback,
     }
+
+
+def _public_question(question: dict) -> dict:
+    return {
+        key: value
+        for key, value in question.items()
+        if key not in {"correct_answer", "answer", "answer_key"}
+    }
+
+
+def _public_questions(questions: list) -> list:
+    return [_public_question(question) for question in questions if isinstance(question, dict)]
+
+
+def _get_submitted_question_index(answers: list[dict], question_index: int) -> bool:
+    return any(
+        isinstance(item, dict) and item.get("question_index") == question_index
+        for item in answers
+    )
 
 
 def _persist_interview_completion(session: InterviewSession, db: Session, current_user: User) -> dict:
@@ -202,9 +258,9 @@ def _sync_weak_skills_to_gap_report(current_user: User, db: Session, weak_skills
 
 
 class AnswerSubmission(BaseModel):
-    question: str
-    answer: str
-    target_role: str
+    question: Optional[str] = Field(default=None, max_length=1500)
+    answer: str = Field(default="", max_length=5000)
+    target_role: Optional[str] = Field(default=None, max_length=160)
     question_index: Optional[int] = None
 
 
@@ -227,7 +283,7 @@ def get_current_interview_session(current_user: User = Depends(get_current_user)
     return {
         "session_id": session.id,
         "target_role": session.target_role,
-        "questions": session.questions or [],
+        "questions": _public_questions(session.questions or []),
         "answers": session.answers or [],
         "scores": session.scores or [],
         "weak_skills": session.weak_skills or completion["weak_skills"],
@@ -239,7 +295,12 @@ def get_current_interview_session(current_user: User = Depends(get_current_user)
 
 
 @router.get("/interview/generate")
-def generate_interview_questions(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def generate_interview_questions(
+    difficulty: str = Query(default="Intermediate", max_length=40),
+    focus_area: str = Query(default="", max_length=120),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Generate a personalized 8-question mock interview session (5 Technical + 3 HR)
     tailored to the student's target role, VTU skill gaps, weak skills, and resume projects.
@@ -282,12 +343,20 @@ def generate_interview_questions(current_user: User = Depends(get_current_user),
     gap_skills = list(dict.fromkeys(gap_skills + [skill for skill in weak_skills if skill]))
 
     # 2. Generate 8-question mock interview
-    result = generate_mock_interview(
-        target_role=target_role,
-        gap_skills=gap_skills,
-        weak_skills=weak_skills,
-        projects=projects,
-    )
+    try:
+        result = generate_mock_interview(
+            target_role=target_role,
+            gap_skills=gap_skills,
+            weak_skills=weak_skills,
+            projects=projects,
+            difficulty=difficulty,
+            focus_area=focus_area,
+        )
+    except QuestionGenerationUnavailable as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Interview questions are temporarily unavailable. Please try again.",
+        ) from error
 
     questions = result.get("questions", [])
 
@@ -305,7 +374,13 @@ def generate_interview_questions(current_user: User = Depends(get_current_user),
     db.commit()
     db.refresh(session)
 
-    return {"target_role": target_role, "questions": questions}
+    return {
+        "target_role": target_role,
+        "difficulty": result.get("difficulty", difficulty),
+        "focus_area": result.get("focus_area", focus_area),
+        "questions": _public_questions(questions),
+        "content_source": result.get("content_source", "fallback"),
+    }
 
 
 @router.post("/interview/evaluate")
@@ -318,19 +393,6 @@ def evaluate_answer(
     Evaluate a candidate's answer for a specific interview question (0-10 score, strengths,
     improvements, feedback, ideal answer hint) and persist the state in SQLite.
     """
-    if not submission.question or not submission.question.strip():
-        raise HTTPException(status_code=400, detail="Question string is required.")
-    if not submission.answer or not submission.answer.strip():
-        raise HTTPException(status_code=400, detail="Answer text cannot be empty.")
-
-    # 1. Perform strict evaluation using evaluator service
-    eval_result = evaluate_candidate_answer(
-        question=submission.question,
-        answer=submission.answer,
-        target_role=submission.target_role,
-    )
-
-    # 2. Find active session and persist answer + score + feedback in SQLite
     session = (
         db.query(InterviewSession)
         .filter(InterviewSession.user_id == current_user.id)
@@ -338,52 +400,93 @@ def evaluate_answer(
         .first()
     )
 
-    if session:
-        answers_list = list(session.answers or [])
-        scores_list = list(session.scores or [])
+    if not session:
+        raise HTTPException(status_code=404, detail="No active interview session was found.")
+    if submission.question_index is None:
+        raise HTTPException(status_code=400, detail="Question index is required.")
+    questions = list(session.questions or [])
+    q_idx = submission.question_index
+    if q_idx < 0 or q_idx >= len(questions) or not isinstance(questions[q_idx], dict):
+        raise HTTPException(status_code=400, detail="Question index is invalid.")
 
-        q_idx = submission.question_index
-        if q_idx is None and session.questions:
-            # Try matching by question string
-            for idx, q in enumerate(session.questions):
-                if q.strip().lower() == submission.question.strip().lower():
-                    q_idx = idx
-                    break
+    question = questions[q_idx]
+    answers_list = list(session.answers or [])
+    scores_list = list(session.scores or [])
+    if _get_submitted_question_index(answers_list, q_idx):
+        raise HTTPException(status_code=409, detail="This question has already been submitted.")
 
-        ans_record = {
-            "question": submission.question,
-            "answer": submission.answer,
-            "question_index": q_idx,
+    question_text = str(question.get("question", ""))
+    answer = submission.answer.strip()
+    q_type = question.get("type")
+    if q_type == "technical_mcq":
+        option_ids = {
+            option.get("id")
+            for option in question.get("options", [])
+            if isinstance(option, dict)
         }
-
-        score_record = {
-            "question_index": q_idx,
-            "question": submission.question,
-            "score_out_of_10": eval_result["score_out_of_10"],
-            "strengths": eval_result["strengths"],
-            "improvements": eval_result["improvements"],
-            "feedback": eval_result["feedback"],
-            "ideal_answer": eval_result["ideal_answer"],
+        if answer not in option_ids:
+            raise HTTPException(status_code=400, detail="Select one of the available answer options.")
+        is_correct = answer == question.get("correct_answer")
+        eval_result = {
+            "score_out_of_10": 10 if is_correct else 0,
+            "is_correct": is_correct,
+            "selected_option": answer,
+            "explanation": question.get("explanation", ""),
+            "evaluation_source": "deterministic",
         }
+    elif q_type == "hr":
+        eval_result = evaluate_candidate_answer(
+            question=question_text,
+            answer=answer,
+            target_role=session.target_role or current_user.target_role or "Software Engineer",
+        )
+    else:
+        raise HTTPException(status_code=422, detail="Stored interview question has an unsupported type.")
 
-        answers_list.append(ans_record)
-        scores_list.append(score_record)
-
-        session.answers = answers_list
-        session.scores = scores_list
-
-        flag_modified(session, "answers")
-        flag_modified(session, "scores")
-        completion = _persist_interview_completion(session, db, current_user)
+    ans_record = {
+        "question": question_text,
+        "answer": answer,
+        "question_index": q_idx,
+        "question_type": q_type,
+    }
+    score_record = {
+        **eval_result,
+        "question_index": q_idx,
+        "question": question_text,
+        "question_type": q_type,
+        "skill": question.get("skill"),
+    }
+    answers_list.append(ans_record)
+    scores_list.append(score_record)
+    session.answers = answers_list
+    session.scores = scores_list
+    flag_modified(session, "answers")
+    flag_modified(session, "scores")
+    completion = _persist_interview_completion(session, db, current_user)
+    if completion["completed"]:
         _sync_weak_skills_to_gap_report(current_user, db, completion["weak_skills"])
-        db.refresh(session)
-
-        return {
-            **eval_result,
-            "completed": completion["completed"],
-            "overall_score": completion["overall_score"],
-            "weak_skills": completion["weak_skills"],
-            "final_feedback": completion["final_feedback"],
-        }
-
-    return {**eval_result, "completed": False, "overall_score": 0.0, "weak_skills": [], "final_feedback": eval_result["feedback"]}
+    db.refresh(session)
+    return {
+        **eval_result,
+        "question_type": q_type,
+        "completed": completion["completed"],
+        "overall_score": completion["overall_score"],
+        "technical_score": round(
+            sum(
+                float(item.get("score_out_of_10", 0))
+                for item in session.scores or []
+                if isinstance(item, dict) and item.get("question_type") == "technical_mcq"
+            ) / 5 * 10,
+            2,
+        ),
+        "hr_score": round(
+            sum(
+                float(item.get("score_out_of_10", 0))
+                for item in session.scores or []
+                if isinstance(item, dict) and item.get("question_type") == "hr"
+            ) / 3 * 10,
+            2,
+        ),
+        "weak_skills": completion["weak_skills"],
+        "final_feedback": completion["final_feedback"],
+    }

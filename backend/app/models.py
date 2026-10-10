@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, JSON, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, JSON, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
@@ -81,3 +81,58 @@ class ReadinessScoreHistory(Base):
     interview_score = Column(Float, default=0)
     total = Column(Float, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class LearningCourse(Base):
+    __tablename__ = "learning_courses"
+    __table_args__ = (UniqueConstraint("user_id", "skill_id", name="uq_learning_course_user_skill"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    skill_id = Column(String, nullable=False, index=True)
+    content = Column(JSON, nullable=False)
+    context = Column(JSON, nullable=False)
+    completed_lessons = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class PracticeSession(Base):
+    __tablename__ = "practice_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    skill_id = Column(String, nullable=False, index=True)
+    lesson_id = Column(String, nullable=False)
+    questions = Column(JSON, nullable=False)
+    content_source = Column(String, nullable=False, default="llm")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class PracticeAttempt(Base):
+    __tablename__ = "practice_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    session_id = Column(Integer, ForeignKey("practice_sessions.id"), nullable=False, index=True)
+    question_id = Column(String, nullable=False, index=True)
+    answer = Column(String, nullable=False)
+    is_correct = Column(Boolean, nullable=False)
+    feedback = Column(String, nullable=False)
+    explanation = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AssessmentAttempt(Base):
+    __tablename__ = "assessment_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    skill_id = Column(String, nullable=False, index=True)
+    lesson_id = Column(String, nullable=False)
+    questions = Column(JSON, nullable=False)
+    content_source = Column(String, nullable=False, default="llm")
+    submitted_answers = Column(JSON, nullable=True)
+    result = Column(JSON, nullable=True)
+    submitted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

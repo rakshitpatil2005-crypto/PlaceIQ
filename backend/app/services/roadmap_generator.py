@@ -60,6 +60,11 @@ def _get_resources(skill: str) -> list[str]:
     return ["documentation & online tutorials", "geeksforgeeks.org"]
 
 
+def get_skill_resources(skill: str) -> list[str]:
+    """Return the existing resource recommendations for use by other services."""
+    return _get_resources(skill)
+
+
 def _extract_skill_lists(gap_data: dict, target_role: str) -> tuple[list[dict], list[dict]]:
     """
     Extract and prioritize:

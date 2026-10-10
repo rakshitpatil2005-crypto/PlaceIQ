@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, FileText, Target, Map, MessagesSquare, LogOut, GraduationCap, Sparkles } from 'lucide-react';
+import { LayoutDashboard, FileText, Target, Map, MessagesSquare, LogOut, GraduationCap, Sparkles, Award } from 'lucide-react';
 
 export default function Navbar() {
   const location = useLocation();
@@ -16,6 +16,7 @@ export default function Navbar() {
     { path: '/resume', icon: FileText, label: 'Resume' },
     { path: '/gap', icon: Target, label: 'Skill Gap' },
     { path: '/roadmap', icon: Map, label: 'Roadmap' },
+    { path: '/mastery', icon: Award, label: 'Skill Mastery' },
     { path: '/interview', icon: MessagesSquare, label: 'Interview' },
     { path: '/readiness', icon: Sparkles, label: 'Readiness' },
   ];

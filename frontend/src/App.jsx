@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -7,6 +8,10 @@ import SkillGap from './pages/SkillGap';
 import Roadmap from './pages/Roadmap';
 import Interview from './pages/Interview';
 import Readiness from './pages/Readiness';
+const Learning = lazy(() => import('./pages/Learning'));
+const Practice = lazy(() => import('./pages/Practice'));
+const Assessment = lazy(() => import('./pages/Assessment'));
+const Mastery = lazy(() => import('./pages/Mastery'));
 
 function PrivateRoute({ children }) {
   const token = localStorage.getItem('token');
@@ -36,6 +41,38 @@ function App() {
                         <Route path="/resume" element={<ResumeUpload />} />
                         <Route path="/gap" element={<SkillGap />} />
                         <Route path="/roadmap" element={<Roadmap />} />
+                        <Route
+                          path="/learn"
+                          element={
+                            <Suspense fallback={<div className="panel-card text-center text-slate-500">Loading skill learning...</div>}>
+                              <Learning />
+                            </Suspense>
+                          }
+                        />
+                        <Route
+                          path="/practice/:sessionId"
+                          element={
+                            <Suspense fallback={<div className="panel-card text-center text-slate-500">Loading practice...</div>}>
+                              <Practice />
+                            </Suspense>
+                          }
+                        />
+                        <Route
+                          path="/assessment/:assessmentId"
+                          element={
+                            <Suspense fallback={<div className="panel-card text-center text-slate-500">Loading assessment...</div>}>
+                              <Assessment />
+                            </Suspense>
+                          }
+                        />
+                        <Route
+                          path="/mastery"
+                          element={
+                            <Suspense fallback={<div className="panel-card text-center text-slate-500">Loading skill mastery...</div>}>
+                              <Mastery />
+                            </Suspense>
+                          }
+                        />
                         <Route path="/interview" element={<Interview />} />
                         <Route path="/readiness" element={<Readiness />} />
                         <Route path="*" element={<Navigate to="/dashboard" />} />

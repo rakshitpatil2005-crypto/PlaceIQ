@@ -1,80 +1,113 @@
-"""
-Core Mock Interview Engine for PlaceIQ (Phase 4.1)
+from __future__ import annotations
 
-Generates personalized 8-question interview sessions (5 Technical + 3 HR) tailored to:
-- Student's VTU-aware skill gaps
-- Weak skills from prior interview sessions
-- Target placement role
-- Specific resume projects from the student's latest resume
-"""
+import json
+import logging
+from types import SimpleNamespace
+from typing import Any
+
 from app.services.llm import ask_llm_json
-from app.services.gap_analyzer import analyze_skill_gap, get_role_requirements
+from app.services.question_support import (
+    QuestionGenerationUnavailable,
+    normalized_choice_text,
+    validate_mcq_explanation,
+    validate_single_answer_mcq,
+)
+
+logger = logging.getLogger(__name__)
+
+TECHNICAL_QUESTION_COUNT = 5
+HR_QUESTION_COUNT = 3
 
 
-def _validate_interview_output(raw: dict, target_role: str) -> list[str]:
-    """
-    Validate and sanitize LLM interview questions output.
-    Ensures a list of exactly 8 non-empty string questions (5 Technical + 3 HR).
-    """
+def _clean_text(value: Any, limit: int = 1000) -> str:
+    return value.strip()[:limit] if isinstance(value, str) else ""
+
+
+def _validate_technical_question(question: Any, index: int) -> dict | None:
+    if not isinstance(question, dict):
+        return None
+    prompt = _clean_text(question.get("question") or question.get("prompt"), 1500)
+    concept = _clean_text(question.get("skill") or question.get("concept"), 160)
+    explanation = _clean_text(question.get("explanation"), 1600)
+    options = question.get("options")
+    correct_answer = _clean_text(question.get("correct_answer"), 20)
+    if not prompt or not concept or not explanation or not isinstance(options, list):
+        return None
+
+    clean_options = []
+    for option in options:
+        if not isinstance(option, dict):
+            return None
+        option_id = _clean_text(option.get("id"), 20)
+        option_text = _clean_text(option.get("text"), 400)
+        if not option_id or not option_text:
+            return None
+        clean_options.append({"id": option_id, "text": option_text})
+    option_objects = [SimpleNamespace(**option) for option in clean_options]
+    try:
+        validate_single_answer_mcq(option_objects, correct_answer, "Interview MCQs")
+        validate_mcq_explanation(
+            option_objects, correct_answer, explanation, "interview MCQs"
+        )
+    except (ValueError, StopIteration):
+        return None
+
+    code = _clean_text(question.get("code"), 2400)
+    return {
+        "question_id": f"q{index + 1}",
+        "type": "technical_mcq",
+        "skill": concept,
+        "question": prompt,
+        "options": clean_options,
+        "correct_answer": correct_answer,
+        "explanation": explanation,
+        "code": code or None,
+    }
+
+
+def _validate_interview_output(raw: Any) -> list[dict] | None:
     if not isinstance(raw, dict):
-        raw = {}
+        return None
+    technical = raw.get("technical_questions")
+    hr = raw.get("hr_questions")
+    if not isinstance(technical, list) or len(technical) != TECHNICAL_QUESTION_COUNT:
+        return None
+    if not isinstance(hr, list) or len(hr) != HR_QUESTION_COUNT:
+        return None
 
-    questions_raw = raw.get("questions")
-    if not isinstance(questions_raw, list):
-        questions_raw = []
+    clean_technical = []
+    for index, item in enumerate(technical):
+        question = _validate_technical_question(item, index)
+        if question is None:
+            return None
+        clean_technical.append(question)
 
-    clean_qs = []
-    seen = set()
-    for q in questions_raw:
-        if isinstance(q, str) and q.strip():
-            q_clean = q.strip()
-            if q_clean.lower() not in seen:
-                seen.add(q_clean.lower())
-                clean_qs.append(q_clean)
+    option_sets: list[set[str]] = []
+    for item in clean_technical:
+        normalized_options = {
+            normalized_choice_text(option["text"]) for option in item["options"]
+        }
+        if any(len(normalized_options.intersection(previous)) >= 3 for previous in option_sets):
+            return None
+        option_sets.append(normalized_options)
 
-    return clean_qs
+    prompts = {normalized_choice_text(item["question"]) for item in clean_technical}
+    for index, item in enumerate(hr):
+        prompt = _clean_text(item.get("question") if isinstance(item, dict) else item, 1500)
+        if not prompt or normalized_choice_text(prompt) in prompts:
+            return None
+        prompts.add(normalized_choice_text(prompt))
+        clean_technical.append(
+            {
+                "question_id": f"q{TECHNICAL_QUESTION_COUNT + index + 1}",
+                "type": "hr",
+                "skill": None,
+                "question": prompt,
+                "options": [],
+            }
+        )
 
-
-def _deterministic_interview_fallback(
-    target_role: str,
-    gap_skills: list[str],
-    weak_skills: list[str],
-    project_name: str,
-    project_tech: list[str],
-) -> list[str]:
-    """
-    Generate a deterministic fallback list of exactly 8 questions (5 Technical + 3 HR)
-    personalized with the student's project, skill gaps, weak points, and target role.
-    """
-    primary_gap = gap_skills[0] if gap_skills else "Core Architecture"
-    secondary_gap = gap_skills[1] if len(gap_skills) > 1 else "Data Structures"
-    weak_focus = weak_skills[0] if weak_skills else primary_gap
-    proj = project_name or "your technical project"
-    tech_stack = ", ".join(project_tech[:3]) if project_tech else "the tech stack used"
-
-    tech_qs = [
-        # Tech 1: Skill gap & weak skill focus
-        f"For the role of {target_role}, how would you approach learning and implementing {weak_focus} in a production environment?",
-        # Tech 2: Project-specific technical question
-        f"In your project '{proj}' ({tech_stack}), what was the most challenging technical obstacle you faced and how did you resolve it?",
-        # Tech 3: Core skill gap / architecture
-        f"Explain the core principles of {primary_gap} and how it applies to building scalable applications in {target_role}.",
-        # Tech 4: Secondary gap / problem solving
-        f"How do you ensure data integrity, error handling, and performance optimization when working with {secondary_gap}?",
-        # Tech 5: Role-specific technical scenarios
-        f"Walk me through how you would design a mini-system or component for {target_role}, highlighting key technical tradeoffs.",
-    ]
-
-    hr_qs = [
-        # HR 1: Teamwork & Conflict Resolution
-        f"Tell me about a time when you had to work in a team for a technical project. How did you handle differences of opinion?",
-        # HR 2: Adaptability & Handling Pressure
-        f"Describe a situation where a project deadline or technical requirement changed unexpectedly. How did you adapt?",
-        # HR 3: Career Alignment & Motivation
-        f"Why are you specifically interested in the {target_role} position, and where do you see your technical skills evolving over the next two years?",
-    ]
-
-    return tech_qs + hr_qs
+    return clean_technical
 
 
 def generate_mock_interview(
@@ -82,65 +115,73 @@ def generate_mock_interview(
     gap_skills: list[str],
     weak_skills: list[str],
     projects: list[dict],
+    difficulty: str = "Intermediate",
+    focus_area: str = "",
 ) -> dict:
-    """
-    Generate an 8-question mock interview session (5 Technical + 3 HR)
-    personalized with the student's project, skill gaps, weak points, and target role.
-    """
-    # Extract project details
-    proj_obj = projects[0] if (projects and isinstance(projects[0], dict)) else {}
-    proj_name = str(proj_obj.get("name") or proj_obj.get("title") or "").strip()
-    proj_tech = proj_obj.get("tech") or proj_obj.get("technologies") or []
-    if isinstance(proj_tech, str):
-        proj_tech = [proj_tech]
-
-    # Combined focus skills
-    focus_skills = list(dict.fromkeys(weak_skills + gap_skills))
-
+    """Generate a validated five-MCQ, three-HR interview; use grounded templates on AI failure."""
+    focus_skills = list(dict.fromkeys([*weak_skills, *gap_skills]))
+    project = projects[0] if projects and isinstance(projects[0], dict) else {}
+    project_name = _clean_text(project.get("name") or project.get("title"))
+    project_tech = project.get("tech") or project.get("technologies") or []
     prompt = f"""
-    Act as a senior technical hiring manager for the job role: "{target_role}".
-    Generate EXACTLY 8 interview questions (5 Technical + 3 HR/Behavioral) personalized for this engineering candidate.
+Create exactly five technical multiple-choice questions and three HR questions for a {difficulty}
+interview for the role {json.dumps(target_role)}.
+Focus area: {json.dumps(focus_area or "Use the candidate's verified skill gaps and weak skills")}.
+Prioritized skills: {json.dumps(focus_skills[:8], ensure_ascii=True)}.
+Resume project context: {json.dumps({"name": project_name, "technologies": project_tech}, ensure_ascii=True)}.
 
-    Candidate Profile:
-    - Target Role: {target_role}
-    - Key Technical Skill Gaps / Weak Skills to test: {', '.join(focus_skills[:5]) if focus_skills else 'Data Structures, REST APIs, System Design'}
-    - Key Resume Project: Name: "{proj_name or 'Engineering Project'}", Tech Stack: {', '.join(proj_tech) if proj_tech else 'General Tech'}
-
-    Requirements:
-    - Questions 1 to 5 MUST be TECHNICAL questions.
-      - At least 1 technical question MUST explicitly reference their resume project "{proj_name or 'Engineering Project'}".
-      - At least 2 technical questions MUST test their skill gaps ({', '.join(focus_skills[:3]) if focus_skills else 'core skills'}).
-    - Questions 6 to 8 MUST be HR / BEHAVIORAL questions assessing teamwork, problem solving under pressure, and career goals for {target_role}.
-
-    Return EXACTLY this JSON structure with NO markdown formatting:
+Technical question requirements:
+- Test practical understanding relevant to the selected role and prioritized skills; include the project context
+  in at least one scenario only when the project data supports it.
+- Each technical item must have question, skill, exactly four distinct option objects with unique IDs and text,
+  correct_answer (one option ID), explanation, and optional code.
+- Exactly one option is correct. Each explanation must refer to the correct choice.
+- Vary conceptual, application, debugging, and trade-off scenarios where relevant.
+HR question requirements:
+- Ask exactly three free-text questions about collaboration, adapting to change, and role motivation.
+- Invite an honest academic, project, or personal example; do not presume or invent the candidate's experiences.
+Return only JSON in this format:
+{{
+  "technical_questions": [
     {{
-      "target_role": "{target_role}",
-      "questions": [
-        "Tech Q1...",
-        "Tech Q2 (referencing project {proj_name or 'Engineering Project'})...",
-        "Tech Q3...",
-        "Tech Q4...",
-        "Tech Q5...",
-        "HR Q1...",
-        "HR Q2...",
-        "HR Q3..."
-      ]
+      "question": "Question text",
+      "skill": "Relevant skill",
+      "options": [
+        {{"id": "a", "text": "Choice A"}},
+        {{"id": "b", "text": "Choice B"}},
+        {{"id": "c", "text": "Choice C"}},
+        {{"id": "d", "text": "Choice D"}}
+      ],
+      "correct_answer": "a",
+      "explanation": "Explain why choice A is correct.",
+      "code": null
     }}
-    """
+  ],
+  "hr_questions": [
+    {{"question": "Open-ended HR question"}}
+  ]
+}}
+"""
+    response = ask_llm_json(prompt, retries=2, max_tokens=3500)
+    validated_questions = _validate_interview_output(response)
+    if validated_questions is None:
+        category = (
+            "provider_unavailable"
+            if isinstance(response, dict) and response.get("error")
+            else "invalid_response_schema"
+        )
+        logger.warning(
+            "Hybrid interview generation unavailable: stage=response_validation category=%s",
+            category,
+        )
+        raise QuestionGenerationUnavailable(
+            "A valid hybrid interview could not be generated."
+        )
 
-    ai_response = ask_llm_json(prompt, retries=2)
-
-    if isinstance(ai_response, dict) and "questions" in ai_response:
-        clean_qs = _validate_interview_output(ai_response, target_role)
-        if len(clean_qs) == 8:
-            return {"target_role": target_role, "questions": clean_qs}
-
-    # Safe deterministic fallback if LLM response is invalid or missing questions
-    fallback_qs = _deterministic_interview_fallback(
-        target_role=target_role,
-        gap_skills=gap_skills,
-        weak_skills=weak_skills,
-        project_name=proj_name,
-        project_tech=proj_tech,
-    )
-    return {"target_role": target_role, "questions": fallback_qs}
+    return {
+        "target_role": target_role,
+        "difficulty": difficulty,
+        "focus_area": focus_area,
+        "questions": validated_questions,
+        "content_source": "llm",
+    }

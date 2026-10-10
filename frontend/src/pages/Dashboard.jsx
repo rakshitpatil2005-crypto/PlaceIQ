@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Activity, ArrowRight, BarChart3, BookOpen, CheckCircle2, Circle, FileText, Gauge, Map, MessageSquare, Sparkles, Target } from 'lucide-react';
+import { Activity, ArrowRight, BarChart3, CheckCircle2, Circle, FileText, Gauge, MessageSquare, Sparkles, Target, Compass } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../api';
+import { getDashboardRecommendations } from '../utils/dashboardRecommendations';
+import { recommendationLinkLabel } from '../utils/recommendationActions';
 
 const defaultProfile = {
   name: 'Student',
@@ -28,11 +30,13 @@ export default function Dashboard() {
     interview_score: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [recommendations, setRecommendations] = useState([]);
+  const [recommendationsError, setRecommendationsError] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const [profileRes, statsRes, readinessRes] = await Promise.all([
+        const [profileRes, statsRes, readinessRes, recommendationsRes] = await Promise.all([
           api.get('/auth/me').catch(() => ({ data: defaultProfile })),
           api.get('/dashboard/stats').catch(() => ({
             data: {
@@ -52,6 +56,7 @@ export default function Dashboard() {
               interview_score: 0,
             },
           })),
+          api.get('/learning/recommendations').catch(() => ({ data: null, error: true })),
         ]);
 
         setProfile({
@@ -76,6 +81,11 @@ export default function Dashboard() {
           roadmap_score: Number(readinessRes.data?.roadmap_score || 0),
           interview_score: Number(readinessRes.data?.interview_score || 0),
         });
+        if (recommendationsRes.error) {
+          setRecommendationsError(true);
+        } else {
+          setRecommendations(getDashboardRecommendations(recommendationsRes.data));
+        }
       } catch (err) {
         console.error('Failed to load dashboard data', err);
       } finally {
@@ -191,6 +201,49 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      <section className="panel-card space-y-4" aria-label="Adaptive learning recommendations">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="soft-label mb-2"><Compass size={13} /> Based on your learning evidence</div>
+            <h2 className="section-title">Recommended next steps</h2>
+          </div>
+          <Link to="/mastery" className="text-sm font-semibold text-brand-700 hover:text-brand-900">View skill mastery</Link>
+        </div>
+        {recommendationsError ? (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status">
+            Recommendations are temporarily unavailable. Your learning and readiness data are unchanged.
+          </p>
+        ) : recommendations.length ? (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {recommendations.slice(0, 2).map((item) => (
+              <article key={`${item.skill_id}-${item.concept || item.action}`} className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-brand-700">{item.action}</p>
+                    <h3 className="mt-1 text-lg font-bold text-slate-900">{item.concept || item.skill_id}</h3>
+                    {item.concept && <p className="mt-1 text-xs font-medium text-slate-500">{item.skill_id}</p>}
+                  </div>
+                  {item.context?.roadmap_week && (
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">Roadmap week {item.context.roadmap_week}</span>
+                  )}
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-700">{item.reason}</p>
+                <p className="mt-2 text-xs leading-5 text-slate-500">{item.evidence.join(' ')}</p>
+                <p className="mt-3 text-sm font-medium text-slate-700">{item.next_step}</p>
+                <Link to={item.href} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-brand-700 hover:text-brand-900">
+                  {recommendationLinkLabel(item.action)} <ArrowRight size={15} />
+                </Link>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+            No next step is available from your current roadmap or submitted assessment evidence. Start a mapped skill lesson or submit an assessment to build learning evidence.
+          </p>
+        )}
+        <p className="text-xs text-slate-500">Recommendations do not update assessment results, completed roadmap tasks, mastery records, or placement readiness.</p>
+      </section>
 
       <div className="dashboard-grid">
         {cards.map(({ label, value, suffix, icon: Icon, accent, summary }, index) => (

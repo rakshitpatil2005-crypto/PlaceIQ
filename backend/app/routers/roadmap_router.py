@@ -8,6 +8,7 @@ from app.auth import get_current_user
 from app.models import User, Roadmap, Resume, GapReport
 from app.services.gap_analyzer import analyze_skill_gap
 from app.services.roadmap_generator import generate_personalized_roadmap
+from app.services.adaptive_roadmap import adapt_student_roadmap
 
 router = APIRouter()
 
@@ -88,6 +89,23 @@ def generate_roadmap(request: RoadmapRequest, current_user: User = Depends(get_c
     db.refresh(new_roadmap)
 
     return new_roadmap
+
+
+@router.post("/roadmap/adapt")
+def adapt_roadmap(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Adapt priorities on the current roadmap without generating or replacing it."""
+    roadmap = (
+        db.query(Roadmap)
+        .filter(Roadmap.user_id == current_user.id)
+        .order_by(Roadmap.id.desc())
+        .first()
+    )
+    if not roadmap:
+        raise HTTPException(status_code=404, detail="No active roadmap found.")
+    return adapt_student_roadmap(db, current_user, roadmap)
 
 
 @router.post("/roadmap/task/toggle")

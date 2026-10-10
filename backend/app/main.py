@@ -11,7 +11,8 @@ from app.routers import (
     roadmap_router, 
     dashboard_router, 
     interview_router,
-    readiness_router
+    readiness_router,
+    learning_router,
 )
 
 # Initialize database tables
@@ -36,6 +37,7 @@ app.include_router(roadmap_router.router, tags=["AI Roadmap"])
 app.include_router(dashboard_router.router, tags=["Dashboard"])
 app.include_router(interview_router.router, tags=["Mock Interview"])
 app.include_router(readiness_router.router, tags=["Readiness Score"])
+app.include_router(learning_router.router, tags=["Skill Learning"])
 
 @app.get("/")
 def health_check():

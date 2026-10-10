@@ -1,137 +1,123 @@
-"""
-Interview Answer Evaluator for PlaceIQ (Phase 4.2)
+"""Evaluate free-text HR interview answers with a consistent rubric."""
 
-Evaluates candidate interview answers strictly with:
-- Score from 0 to 10 (clamped integer)
-- Strengths (what the candidate did well)
-- Improvements (constructive areas for growth)
-- Overall feedback summary
-- Ideal answer hint / reference response
-- Structured validation rules & safe deterministic fallback
-"""
-import re
 from app.services.llm import ask_llm_json
-from app.services.skill_extractor import _alias_to_canonical
 
 
-def _clean_str(val) -> str:
-    if isinstance(val, list):
-        return "; ".join(str(item).strip() for item in val if item and str(item).strip())
-    if isinstance(val, str):
-        return val.strip()
+def _clean_str(value) -> str:
+    if isinstance(value, list):
+        return "; ".join(str(item).strip() for item in value if item and str(item).strip())
+    if isinstance(value, str):
+        return value.strip()
     return ""
 
 
-def _validate_evaluation_output(raw: dict, question: str, target_role: str) -> dict:
-    """
-    Sanitize and validate LLM answer evaluation output.
-    Guarantees integer score (0-10), strengths, improvements, feedback, and ideal_answer.
-    """
+def _validate_evaluation_output(raw: dict) -> dict:
     if not isinstance(raw, dict):
-        raw = {}
-
-    # Score: clamp to 0..10 integer
-    raw_score = raw.get("score_out_of_10") or raw.get("score") or raw.get("rating") or 5
+        raise ValueError("Interview evaluation must be a JSON object.")
     try:
-        score = int(round(float(raw_score)))
-        score = max(0, min(10, score))
-    except (TypeError, ValueError):
-        score = 5
+        score = int(round(float(raw.get("score_out_of_10"))))
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError("Interview evaluation score is invalid.") from error
+    if not 0 <= score <= 10:
+        raise ValueError("Interview evaluation score is outside the supported range.")
 
-    strengths = _clean_str(raw.get("strengths") or raw.get("strengths_summary") or raw.get("positive_points"))
-    if not strengths:
-        strengths = "Displayed relevant technical intent and structured communication."
-
-    improvements = _clean_str(raw.get("improvements") or raw.get("areas_for_improvement") or raw.get("constructive_feedback"))
-    if not improvements:
-        improvements = "Consider providing more specific technical examples and architectural details."
-
-    feedback = _clean_str(raw.get("feedback") or raw.get("overall_feedback"))
-    if not feedback:
-        feedback = f"Strengths: {strengths} Improvements: {improvements}"
-
-    ideal = _clean_str(raw.get("ideal_answer") or raw.get("sample_answer") or raw.get("reference_answer"))
-    if not ideal:
-        ideal = f"A complete answer for {target_role} should clearly explain key concepts, practical trade-offs, and real-world implementations related to {question}."
+    strengths = _clean_str(raw.get("strengths"))
+    missing_points = _clean_str(raw.get("missing_points"))
+    improvements = _clean_str(raw.get("improvement_suggestions"))
+    feedback = _clean_str(raw.get("feedback"))
+    if not all((strengths, missing_points, improvements, feedback)):
+        raise ValueError("Interview evaluation is missing rubric feedback.")
 
     return {
         "score_out_of_10": score,
         "strengths": strengths,
+        "missing_points": missing_points,
         "improvements": improvements,
+        "improvement_suggestions": improvements,
         "feedback": feedback,
-        "ideal_answer": ideal,
+        "ideal_answer": _clean_str(raw.get("model_answer")) or None,
+        "evaluation_source": "ai",
     }
 
 
-def _deterministic_evaluation_fallback(question: str, answer: str, target_role: str) -> dict:
-    """
-    Generate a deterministic answer evaluation fallback if the LLM is unavailable.
-    Evaluates word length and technical keyword density.
-    """
-    answer_text = (answer or "").strip()
-    words = answer_text.split()
-    word_count = len(words)
-
-    # Simple heuristic scoring based on length and technical terms
-    lower_ans = answer_text.lower()
-    tech_matches = sum(1 for alias in _alias_to_canonical if alias in lower_ans)
-
-    if word_count < 10:
-        score = 3
-        strengths = "Provided a direct initial response."
-        improvements = "Answer is too brief. Elaborate with technical terminology, code details, or step-by-step logic."
-        feedback = "Answer is very short. Expand your response with concrete examples and technical depth."
-    elif word_count < 30:
-        score = 6 + (1 if tech_matches >= 2 else 0)
-        strengths = "Good concise explanation with relevant core terminology."
-        improvements = "Could be enhanced by adding practical project examples or performance considerations."
-        feedback = "Solid effort. Add practical application details to score higher in placement interviews."
+def _deterministic_evaluation_fallback(answer: str) -> dict:
+    normalized = " ".join((answer or "").casefold().split())
+    if not normalized:
+        score = 0
+        strengths = "No response was provided."
+        missing_points = "A response to the question is needed."
+        improvements = "Provide a concise, honest answer to the question."
+        feedback = "No response was provided, so it could not be evaluated."
+    elif len(normalized.split()) < 3:
+        score = 2
+        strengths = "The response makes an initial attempt to address the question."
+        missing_points = "More context and a specific supporting point are needed."
+        improvements = "Add a relevant example or explain your reasoning without inventing experience."
+        feedback = "The response is too brief to assess all rubric areas reliably."
     else:
-        score = min(10, 7 + min(3, tech_matches // 2))
-        strengths = "Comprehensive answer demonstrating clear technical depth and structured communication."
-        improvements = "Ensure concise delivery without losing focus on the core question requirements."
-        feedback = "Very thorough response demonstrating good domain knowledge for the role."
-
-    ideal = (
-        f"An ideal answer for '{question}' in a {target_role} interview should clearly state core principles, "
-        f"explain technical implementation details step-by-step, discuss potential trade-offs, and reference real-world project experiences."
-    )
+        has_example = any(marker in normalized for marker in ("for example", "for instance", "in my", "during "))
+        has_action = any(marker in normalized for marker in ("i ", "we ", "my role", "the team"))
+        has_result = any(marker in normalized for marker in ("result", "outcome", "learned", "improved", "completed"))
+        score = 4 + int(has_example) + int(has_action) + int(has_result)
+        missing = []
+        if not has_example:
+            missing.append("a relevant specific example")
+        if not has_action:
+            missing.append("the candidate's own actions or contribution")
+        if not has_result:
+            missing.append("the outcome or learning")
+        missing_points = ", ".join(missing) if missing else "No major rubric element is obviously missing."
+        improvements = (
+            "Clarify your contribution, supporting example, and outcome where relevant."
+            if missing
+            else "Keep the response focused and connect its outcome to the question."
+        )
+        strengths = "The response addresses the question and provides content that can be developed."
+        feedback = "Automated fallback feedback is limited because AI evaluation was unavailable."
 
     return {
         "score_out_of_10": score,
         "strengths": strengths,
+        "missing_points": missing_points,
         "improvements": improvements,
+        "improvement_suggestions": improvements,
         "feedback": feedback,
-        "ideal_answer": ideal,
+        "ideal_answer": None,
+        "evaluation_source": "fallback",
     }
 
 
 def evaluate_candidate_answer(question: str, answer: str, target_role: str) -> dict:
-    """
-    Evaluate a candidate's answer for an interview question.
-    Returns dict with keys: score_out_of_10, strengths, improvements, feedback, ideal_answer.
-    """
+    if not answer or not answer.strip():
+        return _deterministic_evaluation_fallback("")
+
     prompt = f"""
-    Act as a senior technical interviewer for a "{target_role}" position.
+    Act as a fair HR interviewer evaluating a candidate for a "{target_role}" position.
     Question asked: "{question}"
     Candidate's answer: "{answer}"
 
-    Provide a rigorous, constructive evaluation of the candidate's answer.
+    Score from 0 to 10 using these equally important criteria: relevance to the question; clarity and
+    structure; specificity and supporting example; professionalism and completeness. Judge the evidence,
+    not response length. A concise meaningful response can score well. Do not assume experience the
+    candidate did not claim. Give specific strengths, missing points, and actionable improvement suggestions.
+    A model answer may show a general structure but must not invent personal experiences. Set model_answer
+    to null when a safe general exemplar is not appropriate.
 
     Return EXACTLY this JSON structure with NO markdown formatting:
     {{
       "score_out_of_10": 8,
-      "strengths": "Clear explanation of core concepts and good technical terminology.",
-      "improvements": "Include specific architectural trade-offs or practical project implementation details.",
-      "feedback": "Strong technical response. Adding a concrete code/system example would make it exceptional.",
-      "ideal_answer": "An ideal answer should state the definition, explain key mechanisms, discuss performance trade-offs, and provide a practical code/system snippet."
+      "strengths": "The response is relevant and explains the candidate's contribution.",
+      "missing_points": "The outcome could be more specific.",
+      "improvement_suggestions": "Briefly state the result and what you learned.",
+      "feedback": "The answer is clear and relevant.",
+      "model_answer": null
     }}
     """
 
     ai_response = ask_llm_json(prompt, retries=2)
-
     if isinstance(ai_response, dict) and "error" not in ai_response:
-        validated = _validate_evaluation_output(ai_response, question, target_role)
-        return validated
-
-    return _deterministic_evaluation_fallback(question, answer, target_role)
+        try:
+            return _validate_evaluation_output(ai_response)
+        except ValueError:
+            pass
+    return _deterministic_evaluation_fallback(answer)
