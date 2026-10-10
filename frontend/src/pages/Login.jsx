@@ -78,7 +78,7 @@ export default function Login() {
         <div className="auth-visual">
           <div className="auth-badge">
             <Sparkles size={14} />
-            Built for VTU 2025
+            Built for your career
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginTop: '1.25rem' }}>
@@ -88,7 +88,7 @@ export default function Login() {
             <span style={{ fontSize: '1.7rem', fontWeight: 800, letterSpacing: '-0.05em', color: '#0f172a' }}>PlaceIQ</span>
           </div>
 
-          <h1>Turn your degree into a placement advantage.</h1>
+          <h1>Your potential is limitless. Let’s make you placement-ready.</h1>
           <p>
             Discover missing skills, build your roadmap, practice interviews, and monitor your readiness with a premium placement intelligence dashboard built for engineering students.
           </p>
