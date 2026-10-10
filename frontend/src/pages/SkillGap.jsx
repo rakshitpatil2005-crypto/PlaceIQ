@@ -1,25 +1,29 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Target, CheckCircle2, AlertCircle, XCircle, Sparkles, ArrowRight } from 'lucide-react';
 import api from '../api';
+import { runSingleFlight } from '../utils/singleFlight';
 
 export default function SkillGap() {
   const [role, setRole] = useState('Embedded Systems Engineer');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
+  const analysisInFlight = useRef(false);
 
   const analyzeGap = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const { data } = await api.post('/gap/analyze', { target_role: role });
-      setReport(data);
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Analysis failed. Please upload a resume first.');
-    } finally {
-      setLoading(false);
-    }
+    return runSingleFlight(analysisInFlight, async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const { data } = await api.post('/gap/analyze', { target_role: role });
+        setReport(data);
+      } catch (err) {
+        setError(err.response?.data?.detail || 'Analysis failed. Please upload a resume first.');
+      } finally {
+        setLoading(false);
+      }
+    });
   };
 
   return (

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -32,9 +33,37 @@ async def upload_resume(
     if not raw_text:
         raise HTTPException(status_code=400, detail="Could not extract text from PDF.")
 
-    analysis = analyze_resume(raw_text)
+    analysis = await run_in_threadpool(analyze_resume, raw_text)
     if "error" in analysis:
-        raise HTTPException(status_code=500, detail=f"AI Error: {analysis['error']}")
+        category = analysis.get("error_category")
+        if category in {"rate_limit_exceeded", "quota_exceeded"}:
+            retry_after = analysis.get("retry_after_seconds")
+            headers = (
+                {"Retry-After": str(max(1, round(retry_after)))}
+                if isinstance(retry_after, (int, float))
+                else None
+            )
+            message = (
+                "Resume analysis quota is exhausted. Check provider usage limits before retrying."
+                if category == "quota_exceeded"
+                else "Resume analysis is rate-limited. Please wait before retrying."
+            )
+            raise HTTPException(status_code=429, detail=message, headers=headers)
+        if category == "timeout":
+            raise HTTPException(
+                status_code=504,
+                detail="Resume analysis timed out. Please retry.",
+            )
+        if category == "provider_busy":
+            raise HTTPException(
+                status_code=503,
+                detail="Another AI request is currently in progress. Please retry shortly.",
+                headers={"Retry-After": "1"},
+            )
+        raise HTTPException(
+            status_code=503,
+            detail="Resume analysis is temporarily unavailable. Please retry shortly.",
+        )
 
     new_resume = Resume(
         user_id=current_user.id,

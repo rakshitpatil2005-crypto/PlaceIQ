@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -8,10 +8,12 @@ import SkillGap from './pages/SkillGap';
 import Roadmap from './pages/Roadmap';
 import Interview from './pages/Interview';
 import Readiness from './pages/Readiness';
+import Premium from './pages/Premium';
 const Learning = lazy(() => import('./pages/Learning'));
 const Practice = lazy(() => import('./pages/Practice'));
 const Assessment = lazy(() => import('./pages/Assessment'));
 const Mastery = lazy(() => import('./pages/Mastery'));
+const PlacementDashboard = lazy(() => import('./pages/PlacementDashboard'));
 
 function PrivateRoute({ children }) {
   const token = localStorage.getItem('token');
@@ -19,6 +21,7 @@ function PrivateRoute({ children }) {
 }
 
 function App() {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   return (
     <Router>
       <div className="app-shell">
@@ -32,8 +35,8 @@ function App() {
             path="/*"
             element={
               <PrivateRoute>
-                <div className="app-layout">
-                  <Navbar />
+                <div className={`app-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+                  <Navbar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
                   <main className="app-main">
                     <div className="content-shell">
                       <Routes>
@@ -75,6 +78,23 @@ function App() {
                         />
                         <Route path="/interview" element={<Interview />} />
                         <Route path="/readiness" element={<Readiness />} />
+                        <Route path="/premium" element={<Premium />} />
+                        <Route
+                          path="/placement"
+                          element={
+                            <Suspense fallback={<div className="panel-card text-center text-slate-500">Loading placement-cell analytics...</div>}>
+                              <PlacementDashboard />
+                            </Suspense>
+                          }
+                        />
+                        <Route
+                          path="/placement/students/:studentId"
+                          element={
+                            <Suspense fallback={<div className="panel-card text-center text-slate-500">Loading placement-cell analytics...</div>}>
+                              <PlacementDashboard />
+                            </Suspense>
+                          }
+                        />
                         <Route path="*" element={<Navigate to="/dashboard" />} />
                       </Routes>
                     </div>

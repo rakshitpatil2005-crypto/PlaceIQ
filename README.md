@@ -71,6 +71,59 @@ placeiq/
 
 From `backend/`:
 
+### Provisioning the first local admin
+
+Register the account normally first, then run this from `backend/` while using
+the intended local SQLite database:
+
+```powershell
+.\venv\Scripts\python.exe scripts\promote_first_admin.py --email you@example.com --confirm-local-development
+```
+
+The command only changes the role of the matching existing student account. It
+does not create accounts, change passwords, or alter profile data. It refuses
+to run against non-file SQLite databases and is available only while no admin
+exists. The email must exactly match the account used at registration. Do not
+use the legacy demo seeder; it is disabled.
+
+### Local-only placement access recovery
+
+If the existing admin password is unavailable, the following break-glass
+command is limited to the configured, local SQLite database. Stop the backend
+first. Run from `backend/` in dry-run mode before applying:
+
+```powershell
+$db = (Resolve-Path .\placeiq.db).Path
+.\venv\Scripts\python.exe scripts\recover_placement_staff.py --database "$db" --confirm-database "$db" --user-id 14 --confirm-user-id 14 --backup "$db.placement-staff-backup.db"
+```
+
+Review the dry-run target and planned backup. For the write, keep the backend
+stopped and run the same command with `--apply --confirm-backend-stopped`.
+The script creates a new SQLite-API backup, verifies its integrity, schema, and
+row counts, then asks you to type the exact verified backup path before changing
+anything. It changes only user 14's `role`, requires that account to still be a
+student, and verifies existing admin access afterward. It refuses noncanonical,
+missing, non-SQLite, remote, or non-configured database targets and never
+overwrites a backup.
+
+### Granting local placement-staff access
+
+When an admin already exists, use the existing admin-only API rather than the
+first-admin command. Start the local backend, then run from `backend/`:
+
+```powershell
+.\venv\Scripts\python.exe scripts\grant_placement_staff.py --admin-email existing-admin@example.com --user-id 14
+```
+
+The command prompts for the existing admin password with hidden input, signs in
+through `/auth/login`, and sends the grant through
+`PUT /auth/admin/users/{user_id}/placement-staff`. It is restricted to
+localhost/loopback and does not print or persist the password or access token.
+Only an existing admin can grant the role; a student running the command is
+rejected by the backend. If you cannot authenticate as an admin, ask the
+existing admin to grant access or recover that account through a trusted
+operator process; this command does not bypass admin authorization.
+
 ```bash
 # Run Phase 2.1 tests (Skill Intelligence)
 python -m app.tests.test_phase21
@@ -117,6 +170,81 @@ python -m pytest app/tests/test_adaptive_feedback_loop.py
 # Run Study Coach and learning API tests
 python -m pytest app/tests/test_learning.py
 ```
+
+## Razorpay Test Mode (Premium)
+
+Razorpay checkout is optional and disabled until a configured
+`PREMIUM_AMOUNT_MINOR` and all three Razorpay Test Mode credentials are present. The
+amount is an integer in the currency's minor unit (for INR, paise); no default
+sale price is supplied. Configure `PREMIUM_CURRENCY` (three uppercase letters)
+and the backend-only `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and
+`RAZORPAY_WEBHOOK_SECRET` in `backend/.env`. Start from
+[`backend/.env.example`](backend/.env.example); replace its placeholders with
+credentials created in the Razorpay Dashboard's **Test Mode** only. Never put a
+secret in a `VITE_*` variable or frontend source. Install the additive SDK
+dependency in the backend environment with:
+
+```powershell
+pip install -r backend\requirements-payment.txt
+```
+
+In the Razorpay Dashboard, switch to Test Mode, generate the API Key ID and
+Key Secret, and copy them directly into the backend `.env` without sharing or
+committing them. Run the API and Vite frontend in separate terminals:
+
+```powershell
+Set-Location backend
+.\venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+```powershell
+Set-Location frontend
+npm run dev
+```
+
+The authenticated `POST /premium/payment/orders` contract accepts no browser
+price, currency, user, or plan. It returns `payment_order_id`, Razorpay
+`order_id`, configured `amount` and `currency`, the public Test Mode `key_id`,
+and a plan description. `POST /premium/payment/verify` accepts only
+`razorpay_order_id`, `razorpay_payment_id`, and `razorpay_signature`.
+`GET /premium/payment/orders/{payment_order_id}` reconciles saved attempts with
+Razorpay for a safe status refresh. The unauthenticated
+`POST /premium/payment/webhook` requires a valid signature over the raw body
+and the Razorpay `x-razorpay-event-id` header.
+
+Premium activates only after server-side checkout-signature verification and a
+server-side Razorpay payment fetch reports `captured` with the matching local
+order, amount, and currency, or a valid `payment.captured` webhook reports the
+same matching evidence. An order, access request, failed or merely authorized
+payment never grants access. Checkout-signature validity alone does not prove
+settlement. Duplicate events and captured-payment callbacks are idempotent;
+older failed/authorized notifications cannot downgrade a captured order.
+If order creation times out ambiguously, its stable server receipt is reconciled
+before another payable order can be created.
+
+To test webhooks, create a webhook in the Razorpay Dashboard while in Test Mode,
+set its callback URL to the reachable HTTPS development URL ending in
+`/premium/payment/webhook` (Razorpay cannot call plain localhost), enable
+`payment.captured`, `payment.authorized`, and `payment.failed`, choose a webhook
+secret in the Dashboard, and set the same value only as backend
+`RAZORPAY_WEBHOOK_SECRET`. Use the
+provider's test checkout tools to exercise captured, failed, and cancelled
+flows; retry a signed captured event with the same event ID to test duplicate
+delivery. A tampered signature must be rejected. Verify delayed settlement
+using the authenticated status-refresh route. Never send real card details to
+PlaceIQ.
+
+For a deployed SQLite database, stop the backend and create a timestamped
+backup before applying
+[`backend/migrations/002_add_premium_payment_tables.sql`](backend/migrations/002_add_premium_payment_tables.sql);
+the exact PowerShell/SQLite commands are in
+[`backend/migrations/README.md`](backend/migrations/README.md). Tests use
+temporary SQLite databases and do not run migrations against
+`backend/placeiq.db`. Confirm Core endpoints still work and existing pending
+access requests remain pending after testing. Razorpay Test Mode does not
+collect real money. Live Mode, recurring billing, refunds, and operational paid
+upgrades are not implemented; a verified test capture activates the existing
+Premium entitlement solely for test integration.
 
 The authenticated practice API is available under `/learning/practice`: create a session with a canonical `skill_id` and lesson ID, retrieve it by session ID, and submit answers to its question IDs. Session responses omit answer keys; attempts are scoped to their owning student.
 

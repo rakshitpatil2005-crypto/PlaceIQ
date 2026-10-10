@@ -13,6 +13,8 @@ from app.routers import (
     interview_router,
     readiness_router,
     learning_router,
+    premium_router,
+    placement_router,
 )
 
 # Initialize database tables
@@ -38,6 +40,8 @@ app.include_router(dashboard_router.router, tags=["Dashboard"])
 app.include_router(interview_router.router, tags=["Mock Interview"])
 app.include_router(readiness_router.router, tags=["Readiness Score"])
 app.include_router(learning_router.router, tags=["Skill Learning"])
+app.include_router(premium_router.router, tags=["Premium Plan"])
+app.include_router(placement_router.router, tags=["Placement Cell"])
 
 @app.get("/")
 def health_check():

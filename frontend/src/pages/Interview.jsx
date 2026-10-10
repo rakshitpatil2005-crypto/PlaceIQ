@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   AlertCircle, CheckCircle, HelpCircle, Loader, MessageSquare, Send,
   ThumbsUp, TrendingUp,
 } from 'lucide-react';
 import api from '../api';
+import {
+  INTERVIEW_FOCUS_OPTIONS,
+  interviewFocusDescription,
+  interviewFocusRequestValue,
+  interviewGenerationError,
+  interviewGenerationReducer,
+} from '../utils/interviewFocus';
 
 const TECHNICAL_COUNT = 5;
 const toTwoDecimals = (value) => Math.round(value * 100) / 100;
@@ -24,16 +31,23 @@ export default function Interview() {
   const [answers, setAnswers] = useState({});
   const [evaluations, setEvaluations] = useState({});
   const [difficulty, setDifficulty] = useState('Intermediate');
-  const [focusArea, setFocusArea] = useState('');
-  const [generationNotice, setGenerationNotice] = useState('');
+  const [focusArea, setFocusArea] = useState('recommended');
+  const [customFocus, setCustomFocus] = useState('');
+  const [generationState, dispatchGeneration] = useReducer(interviewGenerationReducer, {
+    loading: false,
+    error: '',
+    notice: '',
+  });
   const [restoredOverallScore, setRestoredOverallScore] = useState(null);
-  const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [evaluating, setEvaluating] = useState(false);
   const [error, setError] = useState('');
+  const generationInFlight = useRef(false);
+  const generationRequestId = useRef(0);
 
   const currentQuestion = questions[currentQIndex];
   const currentAnswer = answers[currentQIndex] || '';
   const currentEvaluation = evaluations[currentQIndex];
+  const focusIsValid = focusArea !== 'custom' || Boolean(customFocus.trim());
   const completed = questions.length > 0 && questions.every((_, index) => evaluations[index]);
   const technicalScore = useMemo(() => {
     const evaluated = Object.values(evaluations).filter((item) => item.question_type === 'technical_mcq');
@@ -54,9 +68,10 @@ export default function Interview() {
 
   useEffect(() => {
     let active = true;
+    const restoreRequestId = generationRequestId.current;
     api.get('/interview/session')
       .then(({ data }) => {
-        if (!active || !data?.questions?.length) return;
+        if (!active || generationRequestId.current !== restoreRequestId || !data?.questions?.length) return;
         const scoreMap = questionIndexMap(data.scores);
         setQuestions(data.questions);
         setTargetRole(data.target_role || 'Software Engineer');
@@ -71,31 +86,46 @@ export default function Interview() {
         setCurrentQIndex(next < 0 ? data.questions.length : next);
       })
       .catch(() => {
-        if (active) setError('Could not restore the previous interview session.');
+        if (active && generationRequestId.current === restoreRequestId) {
+          setError('Could not restore the previous interview session.');
+        }
       });
     return () => { active = false; };
   }, []);
 
   const generateQuestions = async () => {
-    setLoadingQuestions(true);
+    if (generationInFlight.current) return;
+    generationInFlight.current = true;
+    const requestId = ++generationRequestId.current;
+    dispatchGeneration({ type: 'start' });
     setError('');
     try {
       const { data } = await api.get('/interview/generate', {
-        params: { difficulty, focus_area: focusArea },
+        params: { difficulty, focus_area: interviewFocusRequestValue(focusArea, customFocus) },
       });
+      if (generationRequestId.current !== requestId) return;
       setQuestions(data.questions || []);
       setTargetRole(data.target_role || 'Software Engineer');
       setAnswers({});
       setEvaluations({});
       setRestoredOverallScore(null);
       setCurrentQIndex(0);
-      setGenerationNotice(data.content_source === 'fallback'
-        ? 'AI question generation was unavailable. This session uses the built-in technical question fallback.'
-        : '');
+      setError('');
+      dispatchGeneration({ type: 'success', contentSource: data.content_source });
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to generate questions.');
+      if (generationRequestId.current === requestId) {
+        dispatchGeneration({
+          type: 'failure',
+          message: interviewGenerationError(
+            err.response?.status,
+            err.response?.data?.detail,
+            questions.length > 0,
+            err.response?.headers?.['retry-after'],
+          ),
+        });
+      }
     } finally {
-      setLoadingQuestions(false);
+      generationInFlight.current = false;
     }
   };
 
@@ -166,27 +196,70 @@ export default function Interview() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mx-auto max-w-4xl space-y-6">
-      <div className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm md:flex-row">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mx-auto max-w-5xl space-y-6">
+      <div className="flex flex-col gap-5 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
         <div>
           <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900">
             <MessageSquare className="text-brand-500" /> AI Mock Interview
           </h2>
           <p className="text-sm text-gray-500">Five scored technical questions and three written HR questions, personalized to your profile.</p>
         </div>
-        <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
-          <select aria-label="Interview difficulty" value={difficulty} onChange={(event) => setDifficulty(event.target.value)} className="input-modern">
-            <option>Beginner</option><option>Intermediate</option><option>Advanced</option>
-          </select>
-          <input aria-label="Interview focus area" value={focusArea} onChange={(event) => setFocusArea(event.target.value)} placeholder="Focus area (optional)" className="input-modern" maxLength={120} />
-          <button onClick={generateQuestions} disabled={loadingQuestions} className="btn-modern flex min-w-[160px] items-center justify-center gap-2">
-            {loadingQuestions ? <Loader className="animate-spin" size={20} /> : 'Start New Session'}
+        <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(10rem,0.8fr)_minmax(17rem,1.3fr)_minmax(12rem,1fr)_minmax(11rem,auto)] xl:items-start xl:gap-4">
+          <label className="flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-gray-700">
+            <span>Difficulty</span>
+            <select
+              aria-label="Interview difficulty"
+              value={difficulty}
+              onChange={(event) => setDifficulty(event.target.value)}
+              className="input-modern h-12 min-w-0 py-2.5 focus-visible:ring-4 focus-visible:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option>Beginner</option><option>Intermediate</option><option>Advanced</option>
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-gray-700">
+            <span>Focus area</span>
+            <select
+              aria-label="Interview focus area"
+              value={focusArea}
+              onChange={(event) => setFocusArea(event.target.value)}
+              className="input-modern h-12 min-w-0 py-2.5 focus-visible:ring-4 focus-visible:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {INTERVIEW_FOCUS_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </label>
+          {focusArea === 'custom' && (
+            <label className="flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-gray-700">
+              <span>Skill or technology</span>
+              <input
+                aria-label="Custom interview focus"
+                value={customFocus}
+                onChange={(event) => setCustomFocus(event.target.value)}
+                placeholder="e.g. Python"
+                className="input-modern h-12 min-w-0 py-2.5 focus-visible:ring-4 focus-visible:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-60"
+                maxLength={120}
+                required
+              />
+            </label>
+          )}
+          <button
+            onClick={generateQuestions}
+            disabled={generationState.loading || !focusIsValid}
+            aria-busy={generationState.loading}
+            className="btn-modern flex h-12 min-w-0 items-center justify-center gap-2 whitespace-nowrap px-4 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-wait disabled:opacity-60 sm:self-end"
+          >
+            {generationState.loading ? <Loader className="animate-spin" size={20} /> : 'Start New Session'}
           </button>
+          <p className="text-xs font-normal leading-relaxed text-gray-500 sm:col-span-2 xl:col-span-full">
+            {interviewFocusDescription(focusArea)}
+          </p>
         </div>
+        {generationState.error && <div role="alert" className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">{generationState.error}</div>}
+        {generationState.notice && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{generationState.notice}</div>}
       </div>
 
       {error && <div role="alert" className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 p-4 text-red-600"><AlertCircle size={20} /> {error}</div>}
-      {generationNotice && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{generationNotice}</div>}
 
       {currentQuestion && (
         <div className="space-y-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-8">

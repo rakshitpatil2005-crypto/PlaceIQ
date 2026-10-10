@@ -1,5 +1,8 @@
 from collections.abc import Generator
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+import threading
+import time
 
 import pytest
 from fastapi import FastAPI
@@ -11,7 +14,21 @@ from sqlalchemy.pool import StaticPool
 from app.auth import create_access_token
 from app.database import Base, get_db
 from app.models import AssessmentAttempt, GapReport, LearningCourse, Roadmap, User
+from app.routers.premium_router import router as premium_router
 from app.routers.learning_router import router as learning_router
+
+
+@pytest.fixture(autouse=True)
+def reset_shared_llm_request_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services import llm
+
+    monkeypatch.setattr(
+        llm,
+        "_provider_slots",
+        threading.BoundedSemaphore(llm._MAX_CONCURRENT_PROVIDER_REQUESTS),
+    )
+    monkeypatch.setattr(llm, "_rate_limit_lock", threading.Lock())
+    monkeypatch.setattr(llm, "_rate_limited_until", 0.0)
 
 
 @pytest.fixture
@@ -43,6 +60,7 @@ def learning_app(monkeypatch: pytest.MonkeyPatch) -> Generator[dict, None, None]
 
     app = FastAPI()
     app.include_router(learning_router)
+    app.include_router(premium_router)
     app.dependency_overrides[get_db] = override_get_db
     client = TestClient(app)
     data = {
@@ -953,14 +971,21 @@ def test_llm_wrapper_applies_the_interactive_token_limit(
 
 
 @pytest.mark.parametrize(
-    ("status_code", "category"),
-    [(401, "authentication"), (429, "rate_limit_or_quota"), (None, "provider_error")],
+    ("status_code", "category", "expected_attempts"),
+    [
+        (400, "provider_bad_request", 1),
+        (401, "authentication", 1),
+        (404, "model_unavailable", 1),
+        (429, "rate_limit_exceeded", 2),
+        (None, "provider_error", 1),
+    ],
 )
 def test_llm_wrapper_logs_safe_provider_failure_categories(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
     status_code: int | None,
     category: str,
+    expected_attempts: int,
 ) -> None:
     from types import SimpleNamespace
 
@@ -985,10 +1010,10 @@ def test_llm_wrapper_logs_safe_provider_failure_categories(
 
     assert "error" in result
     records = [record for record in caplog.records if record.name == llm.__name__]
-    assert len(records) == 2
+    assert len(records) == expected_attempts
     assert all(record.groq_stage == "model_discovery" for record in records)
     assert all(record.groq_category == category for record in records)
-    assert all(record.groq_attempt in (1, 2) for record in records)
+    assert all(record.groq_attempt == index for index, record in enumerate(records, 1))
     assert "sensitive-provider-detail-and-secret" not in caplog.text
     assert "sensitive prompt" not in caplog.text
 
@@ -1029,6 +1054,411 @@ def test_llm_wrapper_logs_malformed_json_after_repair_fails(
     assert "private prompt" not in caplog.text
 
 
+def test_llm_wrapper_respects_short_retry_after_and_records_safe_provider_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from types import SimpleNamespace
+
+    from app.services import llm
+
+    calls = []
+    waits = []
+
+    class RateLimited(Exception):
+        status_code = 429
+        response = SimpleNamespace(headers={"retry-after": "2"})
+
+    def fake_create(**options: object) -> object:
+        calls.append(options)
+        if len(calls) == 1:
+            raise RateLimited("private provider details")
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content='{"ok":true}'))]
+        )
+
+    monkeypatch.setattr(llm, "_get_model", lambda: "test-model")
+    monkeypatch.setattr(llm.time, "sleep", waits.append)
+    monkeypatch.setattr(
+        llm,
+        "client",
+        SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))),
+    )
+    caplog.set_level("WARNING", logger=llm.__name__)
+
+    result = llm.ask_llm_json("private prompt", retries=2, max_tokens=1200)
+
+    assert result == {"ok": True}
+    assert waits == [2.0]
+    assert len(calls) == 2
+    assert all(call["response_format"] == {"type": "json_object"} for call in calls)
+    assert all(call["max_tokens"] == 1200 for call in calls)
+    record = next(record for record in caplog.records if record.name == llm.__name__)
+    assert record.groq_stage == "completion"
+    assert record.groq_category == "rate_limit_exceeded"
+    assert record.groq_status_code == 429
+    assert record.groq_model == "test-model"
+    assert record.groq_response_format == "json_object"
+    assert "private provider details" not in caplog.text
+    assert "private prompt" not in caplog.text
+
+
+def test_llm_wrapper_does_not_retry_before_long_provider_retry_after(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from types import SimpleNamespace
+
+    from app.services import llm
+
+    class RateLimited(Exception):
+        status_code = 429
+        response = SimpleNamespace(headers={"retry-after": "45"})
+
+    calls = []
+
+    def fail_completion(**options: object) -> object:
+        calls.append(options)
+        raise RateLimited("private provider details")
+
+    monkeypatch.setattr(llm, "_get_model", lambda: "test-model")
+    monkeypatch.setattr(
+        llm,
+        "client",
+        SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fail_completion))),
+    )
+    caplog.set_level("WARNING", logger=llm.__name__)
+
+    result = llm.ask_llm_json("private prompt", retries=3)
+
+    assert len(calls) == 1
+    assert result["error_category"] == "rate_limit_exceeded"
+    assert result["status_code"] == 429
+    assert result["retry_after_seconds"] == 45
+    assert result["attempts"] == 1
+    assert result["model"] == "test-model"
+    assert result["response_format"] == "json_object"
+    record = next(record for record in caplog.records if record.name == llm.__name__)
+    assert record.groq_category == "rate_limit_exceeded"
+    assert record.groq_status_code == 429
+    assert record.groq_attempt == 1
+    assert "private provider details" not in caplog.text
+    assert "private prompt" not in caplog.text
+
+
+def test_llm_wrapper_caps_persistent_rate_limit_attempts_and_uses_jittered_backoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from app.services import llm
+
+    class RateLimited(Exception):
+        status_code = 429
+        response = SimpleNamespace(headers={})
+
+    calls = []
+    waits = []
+
+    def fail_completion(**options: object) -> object:
+        calls.append(options)
+        raise RateLimited("private provider detail")
+
+    monkeypatch.setattr(llm, "_get_model", lambda: "test-model")
+    monkeypatch.setattr(llm.random, "uniform", lambda low, high: high)
+    monkeypatch.setattr(llm.time, "sleep", waits.append)
+    monkeypatch.setattr(
+        llm,
+        "client",
+        SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fail_completion))),
+    )
+
+    result = llm.ask_llm_json("private prompt", retries=50)
+
+    assert len(calls) == llm._MAX_WRAPPER_ATTEMPTS == 2
+    assert waits == [0.75]
+    assert result["error_category"] == "rate_limit_exceeded"
+    assert result["attempts"] == 2
+
+
+def test_llm_wrapper_does_not_retry_provider_quota_exhaustion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from app.services import llm
+
+    class QuotaExceeded(Exception):
+        status_code = 429
+        body = {"error": {"code": "insufficient_quota"}}
+
+    calls = []
+
+    def fail_completion(**options: object) -> object:
+        calls.append(options)
+        raise QuotaExceeded("private provider detail")
+
+    monkeypatch.setattr(llm, "_get_model", lambda: "test-model")
+    monkeypatch.setattr(
+        llm,
+        "client",
+        SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fail_completion))),
+    )
+
+    result = llm.ask_llm_json("private prompt", retries=2)
+
+    assert result["error_category"] == "quota_exceeded"
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_category"),
+    [
+        (TimeoutError("private timeout"), "timeout"),
+        (ConnectionError("private connection failure"), "network"),
+    ],
+)
+def test_llm_wrapper_retries_transient_failures_with_bounded_backoff(
+    monkeypatch: pytest.MonkeyPatch,
+    failure: Exception,
+    expected_category: str,
+) -> None:
+    from types import SimpleNamespace
+
+    from app.services import llm
+
+    calls = []
+    waits = []
+
+    def fail_completion(**options: object) -> object:
+        calls.append(options)
+        raise failure
+
+    monkeypatch.setattr(llm, "_get_model", lambda: "test-model")
+    monkeypatch.setattr(llm.random, "uniform", lambda low, high: 0.0)
+    monkeypatch.setattr(llm.time, "sleep", waits.append)
+    monkeypatch.setattr(
+        llm,
+        "client",
+        SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fail_completion))),
+    )
+
+    result = llm.ask_llm_json("private prompt", retries=2)
+
+    assert result["error_category"] == expected_category
+    assert len(calls) == 2
+    assert waits == [0.5]
+
+
+def test_llm_wrapper_uses_provider_reset_headers_as_retry_guidance() -> None:
+    from types import SimpleNamespace
+
+    from app.services.llm import _retry_after_seconds
+
+    assert _retry_after_seconds(
+        SimpleNamespace(response=SimpleNamespace(headers={"retry-after-ms": "250"}))
+    ) == 0.25
+    assert _retry_after_seconds(
+        SimpleNamespace(response=SimpleNamespace(headers={"x-ratelimit-reset-requests": "3s"}))
+    ) == 3.0
+
+
+def test_configured_groq_client_disables_sdk_retries() -> None:
+    from app.services import llm
+
+    assert llm.client.max_retries == 0
+    assert llm.client.timeout == 40.0
+
+
+def test_sequential_ai_features_share_provider_rate_limit_and_recover_after_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from app.services import llm
+
+    now = [100.0]
+    waits = []
+    calls = []
+
+    class RateLimited(Exception):
+        status_code = 429
+        response = SimpleNamespace(headers={"retry-after": "7"})
+
+    def fake_create(**options: object) -> object:
+        calls.append(options)
+        if len(calls) == 1:
+            raise RateLimited("private details")
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content='{"ok":true}'))]
+        )
+
+    def fake_sleep(seconds: float) -> None:
+        waits.append(seconds)
+        now[0] += seconds
+
+    monkeypatch.setattr(llm.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(llm.time, "sleep", fake_sleep)
+    monkeypatch.setattr(llm, "_get_model", lambda: "test-model")
+    monkeypatch.setattr(
+        llm,
+        "client",
+        SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))),
+    )
+
+    failed_resume_analysis = llm.ask_llm_json("resume prompt", retries=1)
+    next_feature = llm.ask_llm_json("study coach prompt", retries=1)
+
+    assert failed_resume_analysis["error_category"] == "rate_limit_exceeded"
+    assert failed_resume_analysis["retry_after_seconds"] == 7
+    assert next_feature == {"ok": True}
+    assert len(calls) == 2
+    assert waits == [7.0]
+
+
+def test_concurrent_ai_requests_obey_shared_provider_concurrency_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from app.services import llm
+
+    lock = threading.Lock()
+    active = 0
+    maximum_active = 0
+
+    def fake_create(**options: object) -> object:
+        nonlocal active, maximum_active
+        with lock:
+            active += 1
+            maximum_active = max(maximum_active, active)
+        time.sleep(0.02)
+        with lock:
+            active -= 1
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content='{"ok":true}'))]
+        )
+
+    monkeypatch.setattr(llm, "_get_model", lambda: "test-model")
+    monkeypatch.setattr(
+        llm,
+        "client",
+        SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))),
+    )
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        results = list(pool.map(lambda index: llm.ask_llm_json(f"prompt {index}", retries=1), range(6)))
+
+    assert results == [{"ok": True}] * 6
+    assert 1 < maximum_active <= llm._MAX_CONCURRENT_PROVIDER_REQUESTS
+
+
+def test_shared_rate_limit_rejects_new_feature_requests_until_long_window_expires(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from app.services import llm
+
+    now = [200.0]
+    calls = []
+
+    class RateLimited(Exception):
+        status_code = 429
+        response = SimpleNamespace(headers={"retry-after": "45"})
+
+    def fail_completion(**options: object) -> object:
+        calls.append(options)
+        raise RateLimited("private details")
+
+    monkeypatch.setattr(llm.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(llm, "_get_model", lambda: "test-model")
+    monkeypatch.setattr(
+        llm,
+        "client",
+        SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fail_completion))),
+    )
+
+    first = llm.ask_llm_json("interview prompt", retries=2)
+    second = llm.ask_llm_json("roadmap prompt", retries=2)
+
+    assert first["error_category"] == "rate_limit_exceeded"
+    assert second["error_category"] == "rate_limit_exceeded"
+    assert second["retry_after_seconds"] == 45
+    assert second["attempts"] == 0
+    assert len(calls) == 1
+
+
+def test_shared_provider_gate_releases_after_timeout_for_next_feature(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from app.services import llm
+
+    calls = []
+
+    def fake_create(**options: object) -> object:
+        calls.append(options)
+        if len(calls) == 1:
+            raise TimeoutError("private timeout")
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content='{"ok":true}'))]
+        )
+
+    monkeypatch.setattr(llm, "_get_model", lambda: "test-model")
+    monkeypatch.setattr(llm.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(
+        llm,
+        "client",
+        SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))),
+    )
+
+    first = llm.ask_llm_json("assessment prompt", retries=1)
+    second = llm.ask_llm_json("practice prompt", retries=1)
+
+    assert first["error_category"] == "timeout"
+    assert second == {"ok": True}
+    assert len(calls) == 2
+
+
+def test_resume_upload_offloads_analysis_and_exposes_safe_provider_retry_delay(
+    learning_app: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers import resume_router
+
+    thread_ids = {}
+
+    def extract_pdf(_contents: bytes) -> str:
+        thread_ids["route"] = threading.get_ident()
+        return "A parsed resume."
+
+    def rate_limited_analysis(_resume_text: str) -> dict:
+        thread_ids["analysis"] = threading.get_ident()
+        return {
+            "error": "private provider details",
+            "error_category": "rate_limit_exceeded",
+            "retry_after_seconds": 7,
+        }
+
+    learning_app["client"].app.include_router(resume_router.router)
+    monkeypatch.setattr(resume_router, "extract_text_from_pdf", extract_pdf)
+    monkeypatch.setattr(resume_router, "analyze_resume", rate_limited_analysis)
+
+    response = learning_app["client"].post(
+        "/resume/upload",
+        files={"file": ("resume.pdf", b"pdf-content", "application/pdf")},
+        headers=learning_app["headers"],
+    )
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "7"
+    assert response.json()["detail"] == "Resume analysis is rate-limited. Please wait before retrying."
+    assert thread_ids["analysis"] != thread_ids["route"]
+    assert "private provider details" not in response.text
+
+
 def test_llm_wrapper_logs_completion_failures_without_exception_details(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
@@ -1056,3 +1486,34 @@ def test_llm_wrapper_logs_completion_failures_without_exception_details(
     assert record.groq_attempt == 1
     assert "private timeout detail and secret" not in caplog.text
     assert "private prompt" not in caplog.text
+
+
+def test_llm_wrapper_keeps_safe_metadata_for_parsed_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from app.services import llm
+
+    completion = SimpleNamespace(
+        choices=[
+            SimpleNamespace(message=SimpleNamespace(content='{"technical_questions": []}'))
+        ]
+    )
+    monkeypatch.setattr(llm, "_get_model", lambda: "test-model")
+    monkeypatch.setattr(
+        llm,
+        "client",
+        SimpleNamespace(
+            chat=SimpleNamespace(
+                completions=SimpleNamespace(create=lambda **options: completion)
+            )
+        ),
+    )
+
+    result = llm.ask_llm_json("private prompt", retries=2)
+
+    assert result["technical_questions"] == []
+    assert result.provider_model == "test-model"
+    assert result.attempts == 1
+    assert result.response_format == "json_object"

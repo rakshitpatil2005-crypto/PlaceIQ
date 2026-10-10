@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.testclient import TestClient
@@ -12,7 +14,18 @@ from app.database import Base, get_db
 from app.models import GapReport, InterviewSession, Resume, User
 from app.routers import interview_router
 from app.services import interview_evaluator, interview_generator
+from app.services.question_support import QuestionGenerationUnavailable
 from app.services.readiness_service import compute_readiness_metrics
+
+INTERVIEW_DIFFICULTIES = tuple(interview_generator.INTERVIEW_DIFFICULTY_GUIDANCE)
+INTERVIEW_FOCUS_CASES = (
+    ("recommended", "SQL", "Recommended for me"),
+    *(
+        (focus_key, focus_label, focus_label)
+        for focus_key, focus_label in interview_generator.INTERVIEW_FOCUS_AREAS.items()
+    ),
+    ("custom:Kubernetes", "Kubernetes", "My own focus: Kubernetes"),
+)
 
 
 def _question_set() -> list[dict]:
@@ -50,6 +63,41 @@ def _question_set() -> list[dict]:
         for index in range(3)
     )
     return questions
+
+
+def _valid_generation_response(skill: str = "SQL") -> dict:
+    technical = []
+    question_patterns = (
+        "Which {skill} approach best preserves correctness in the given scenario?",
+        "A feature using {skill} behaves unexpectedly; what should be checked first?",
+        "When choosing a {skill} strategy, which trade-off best fits the stated requirement?",
+        "How should a developer apply {skill} to make this workflow more reliable?",
+        "Which change is the strongest practical use of {skill} for this case?",
+    )
+    for index in range(5):
+        options = [
+            {"id": f"option-{index}-a", "text": f"Apply {skill} to meet the stated correctness requirement {index}."},
+            {"id": f"option-{index}-b", "text": f"Ignore the {skill} result and assume the missing values are correct {index}."},
+            {"id": f"option-{index}-c", "text": f"Disable checks and accept every {skill} result without review {index}."},
+            {"id": f"option-{index}-d", "text": f"Replace the {skill} step with an unrelated presentation change {index}."},
+        ]
+        technical.append(
+            {
+                "question": question_patterns[index].format(skill=skill),
+                "skill": skill,
+                "options": options,
+                "correct_answer": options[0]["id"],
+                "explanation": f"{options[0]['text']} is correct for this scenario.",
+            }
+        )
+    return {
+        "technical_questions": technical,
+        "hr_questions": [
+            {"question": "Describe a time you collaborated on a project."},
+            {"question": "How do you adapt when a project requirement changes?"},
+            {"question": "What interests you about this role?"},
+        ],
+    }
 
 
 @pytest.fixture
@@ -327,32 +375,22 @@ def test_malformed_hr_evaluation_uses_labeled_fallback(monkeypatch):
     assert "unavailable" in result["feedback"].lower()
 
 
-def test_generator_fallback_produces_valid_five_mcqs_and_three_hr(monkeypatch):
+def test_provider_failure_returns_recoverable_generation_error(monkeypatch):
     monkeypatch.setattr(
         interview_generator,
         "ask_llm_json",
         lambda *args, **kwargs: {"error": "provider unavailable"},
     )
-    result = interview_generator.generate_mock_interview(
-        target_role="Data Analyst",
-        gap_skills=["SQL", "Statistics"],
-        weak_skills=["Data Visualization"],
-        projects=[{"name": "Sales Dashboard", "tech": ["SQL"]}],
-    )
-    assert result["content_source"] == "fallback"
-    assert len(result["questions"]) == 8
-    assert all(item["type"] == "technical_mcq" for item in result["questions"][:5])
-    assert all(item["type"] == "hr" for item in result["questions"][5:])
-    for item in result["questions"][:5]:
-        assert len(item["options"]) == 4
-        assert len({option["id"] for option in item["options"]}) == 4
-        assert len({option["text"].casefold() for option in item["options"]}) == 4
-        assert item["correct_answer"] in {option["id"] for option in item["options"]}
-        assert item["explanation"]
-    assert "SQL" in " ".join(item["skill"] for item in result["questions"][:5])
+    with pytest.raises(QuestionGenerationUnavailable, match="valid hybrid interview"):
+        interview_generator.generate_mock_interview(
+            target_role="Data Analyst",
+            gap_skills=["SQL", "Statistics"],
+            weak_skills=["Data Visualization"],
+            projects=[{"name": "Sales Dashboard", "tech": ["SQL"]}],
+        )
 
 
-def test_invalid_ai_mcq_is_rejected_and_falls_back(monkeypatch):
+def test_malformed_ai_mcq_returns_recoverable_generation_error(monkeypatch):
     malformed = {
         "technical_questions": [
             {
@@ -367,8 +405,497 @@ def test_invalid_ai_mcq_is_rejected_and_falls_back(monkeypatch):
         "hr_questions": [{"question": f"HR {index}"} for index in range(3)],
     }
     monkeypatch.setattr(interview_generator, "ask_llm_json", lambda *args, **kwargs: malformed)
-    result = interview_generator.generate_mock_interview(
-        "Analyst", ["SQL"], [], []
+    with pytest.raises(QuestionGenerationUnavailable, match="valid hybrid interview"):
+        interview_generator.generate_mock_interview("Analyst", ["SQL"], [], [])
+
+
+def test_truncated_or_unparseable_provider_response_is_logged_as_malformed_json(
+    monkeypatch, caplog
+):
+    monkeypatch.setattr(
+        interview_generator,
+        "ask_llm_json",
+        lambda *args, **kwargs: {"error": "JSON decode failed on attempt 2"},
     )
-    assert result["content_source"] == "fallback"
-    assert all(len(question["options"]) == 4 for question in result["questions"][:5])
+
+    with pytest.raises(QuestionGenerationUnavailable):
+        interview_generator.generate_mock_interview(
+            "Engineer", ["Python"], [], [], difficulty="Advanced"
+        )
+
+    assert "category=malformed_json" in caplog.text
+
+
+def test_duplicate_technical_questions_are_rejected(monkeypatch):
+    response = _valid_generation_response()
+    response["technical_questions"][1]["question"] = response["technical_questions"][0]["question"]
+    monkeypatch.setattr(interview_generator, "ask_llm_json", lambda *args, **kwargs: response)
+
+    with pytest.raises(QuestionGenerationUnavailable):
+        interview_generator.generate_mock_interview("Engineer", ["SQL"], [], [])
+
+
+def test_near_duplicate_technical_questions_are_rejected(monkeypatch):
+    response = _valid_generation_response()
+    original = response["technical_questions"][0]["question"]
+    response["technical_questions"][1]["question"] = original.replace(
+        "preserves", "protects"
+    )
+    monkeypatch.setattr(interview_generator, "ask_llm_json", lambda *args, **kwargs: response)
+
+    with pytest.raises(QuestionGenerationUnavailable) as raised:
+        interview_generator.generate_mock_interview("Engineer", ["SQL"], [], [])
+
+    assert raised.value.category == "duplicate_question"
+
+
+def test_invalid_mcq_output_logs_safe_provider_diagnostics(monkeypatch, caplog):
+    from app.services.llm import LLMJSONResponse
+
+    response = LLMJSONResponse(
+        {"technical_questions": [], "hr_questions": []},
+        model="test-model",
+        attempts=2,
+    )
+    monkeypatch.setattr(interview_generator, "ask_llm_json", lambda *args, **kwargs: response)
+    caplog.set_level("WARNING", logger=interview_generator.__name__)
+
+    with pytest.raises(QuestionGenerationUnavailable):
+        interview_generator.generate_mock_interview("Engineer", ["SQL"], [], [])
+
+    record = next(record for record in caplog.records if record.name == interview_generator.__name__)
+    assert record.interview_generation_stage == "question_count"
+    assert record.interview_generation_category == "question_count"
+    assert record.interview_provider == "test-model"
+    assert record.interview_provider_status is None
+    assert record.interview_attempts == 2
+    assert record.interview_response_format == "json_object"
+
+
+def test_validation_failure_category_is_returned_safely_by_api(harness, monkeypatch):
+    client, _, ids, _ = harness
+
+    def invalid_questions(**kwargs):
+        raise QuestionGenerationUnavailable(
+            "private generated content",
+            category="duplicate_option_text",
+        )
+
+    monkeypatch.setattr(interview_router, "generate_mock_interview", invalid_questions)
+    response = client.get("/interview/generate", headers=_headers(ids[0]))
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == (
+        "Generated interview validation failed (duplicate_option_text). Please retry."
+    )
+    assert "private generated content" not in response.text
+
+
+def test_valid_mcq_with_paraphrased_concept_explanation_is_accepted(monkeypatch):
+    response = _valid_generation_response("CSS Grid")
+    response["technical_questions"][0]["options"][0]["text"] = "Use CSS Grid"
+    response["technical_questions"][0]["explanation"] = (
+        "It provides a two-dimensional layout model suited to dashboard cards."
+    )
+    monkeypatch.setattr(interview_generator, "ask_llm_json", lambda *args, **kwargs: response)
+
+    result = interview_generator.generate_mock_interview(
+        "Frontend Developer", ["CSS"], [], [], difficulty="Beginner", focus_area="recommended"
+    )
+
+    question = result["questions"][0]
+    assert result["focus_area"] == "Recommended for me"
+    assert question["skill"] == "CSS Grid"
+    assert question["explanation"] == response["technical_questions"][0]["explanation"]
+    assert question["correct_answer"] in {option["id"] for option in question["options"]}
+
+
+@pytest.mark.parametrize(
+    ("mutate", "expected_category"),
+    [
+        (lambda response: response["technical_questions"].pop(), "question_count"),
+        (
+            lambda response: response["technical_questions"][0]["options"].__setitem__(
+                1, response["technical_questions"][0]["options"][0].copy()
+            ),
+            "duplicate_option_ids",
+        ),
+        (
+            lambda response: response["technical_questions"][0].update(
+                correct_answer="not-an-option"
+            ),
+            "invalid_correct_answer",
+        ),
+    ],
+)
+def test_invalid_provider_output_reports_exact_safe_validation_category(
+    monkeypatch, caplog, mutate, expected_category
+):
+    response = _valid_generation_response()
+    mutate(response)
+    monkeypatch.setattr(interview_generator, "ask_llm_json", lambda *args, **kwargs: response)
+    caplog.set_level("WARNING", logger=interview_generator.__name__)
+
+    with pytest.raises(QuestionGenerationUnavailable) as raised:
+        interview_generator.generate_mock_interview("Engineer", ["SQL"], [], [])
+
+    record = next(record for record in caplog.records if record.name == interview_generator.__name__)
+    assert raised.value.category == expected_category
+    assert record.interview_generation_category == expected_category
+    assert record.interview_question_index == (1 if expected_category != "question_count" else None)
+
+
+@pytest.mark.parametrize(
+    ("difficulty", "expected_guidance"),
+    [
+        ("Beginner", "Test foundations"),
+        ("Intermediate", "short scenario"),
+        ("Advanced", "multi-step reasoning"),
+    ],
+)
+def test_generation_uses_difficulty_specific_prompt_and_returns_eight_questions(
+    monkeypatch, difficulty, expected_guidance
+):
+    captured = {}
+
+    def valid_response(prompt, **kwargs):
+        captured.update(prompt=prompt, kwargs=kwargs)
+        return _valid_generation_response()
+
+    monkeypatch.setattr(interview_generator, "ask_llm_json", valid_response)
+    result = interview_generator.generate_mock_interview(
+        "Backend Developer", ["SQL"], ["Python"], [], difficulty=difficulty
+    )
+
+    assert difficulty in captured["prompt"]
+    assert expected_guidance in captured["prompt"]
+    assert captured["kwargs"]["max_tokens"] == interview_generator.MAX_INTERVIEW_GENERATION_TOKENS
+    assert result["difficulty"] == difficulty
+    assert len(result["questions"]) == 8
+    assert [question["type"] for question in result["questions"]] == [
+        "technical_mcq",
+    ] * 5 + ["hr"] * 3
+
+
+@pytest.mark.parametrize("difficulty", INTERVIEW_DIFFICULTIES)
+@pytest.mark.parametrize(
+    ("focus_area", "question_skill", "expected_focus_label"),
+    INTERVIEW_FOCUS_CASES,
+)
+def test_full_difficulty_focus_matrix_through_authenticated_api(
+    harness,
+    difficulty,
+    focus_area,
+    question_skill,
+    expected_focus_label,
+):
+    client, session_factory, ids, monkeypatch = harness
+    captured = {}
+
+    def valid_response(prompt, **kwargs):
+        captured["prompt"] = prompt
+        captured["kwargs"] = kwargs
+        return _valid_generation_response(question_skill)
+
+    monkeypatch.setattr(
+        interview_router,
+        "generate_mock_interview",
+        interview_generator.generate_mock_interview,
+    )
+    monkeypatch.setattr(interview_generator, "ask_llm_json", valid_response)
+
+    response = client.get(
+        "/interview/generate",
+        headers=_headers(ids[0]),
+        params={"difficulty": difficulty, "focus_area": focus_area},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["difficulty"] == difficulty
+    assert payload["focus_area"] == expected_focus_label
+    assert interview_generator.INTERVIEW_DIFFICULTY_GUIDANCE[difficulty] in captured["prompt"]
+    resolved_focus, _ = interview_generator.resolve_interview_focus(focus_area)
+    assert json.dumps(resolved_focus) in captured["prompt"]
+    assert captured["kwargs"]["max_tokens"] == interview_generator.MAX_INTERVIEW_GENERATION_TOKENS
+    assert len(payload["questions"]) == 8
+    technical = payload["questions"][:5]
+    assert all(item["type"] == "technical_mcq" for item in technical)
+    assert all(item["skill"] == question_skill for item in technical)
+    for question in technical:
+        assert question_skill.casefold() in question["question"].casefold()
+        assert len(question["options"]) == 4
+        assert len({option["id"] for option in question["options"]}) == 4
+        assert len({option["text"].casefold() for option in question["options"]}) == 4
+        assert "correct_answer" not in question
+    for index, question in enumerate(technical):
+        options = {option["text"].casefold() for option in question["options"]}
+        for previous in technical[:index]:
+            assert len(options.intersection(
+                option["text"].casefold() for option in previous["options"]
+            )) < 3
+    assert all(item["type"] == "hr" for item in payload["questions"][5:])
+    assert all("correct_answer" not in item for item in payload["questions"])
+    with session_factory() as db:
+        saved = db.query(InterviewSession).filter_by(user_id=ids[0]).one()
+        assert len(saved.questions) == 8
+        for question in saved.questions[:5]:
+            assert question.get("correct_answer") in {
+                option["id"] for option in question["options"]
+            }
+
+
+@pytest.mark.parametrize(
+    ("focus", "expected_prompt_text", "expected_label"),
+    [
+        ("recommended", "server-verified role", "Recommended for me"),
+        ("programming_languages", "Programming Languages", "Programming Languages"),
+        ("web_development", "Web Development", "Web Development"),
+        ("data_structures_algorithms", "Data Structures & Algorithms", "Data Structures & Algorithms"),
+        ("database_sql", "Database & SQL", "Database & SQL"),
+        ("core_computer_science", "Core Computer Science", "Core Computer Science"),
+        ("ai_machine_learning", "AI & Machine Learning", "AI & Machine Learning"),
+        ("cloud_computing", "Cloud Computing", "Cloud Computing"),
+        ("full_stack_development", "Full Stack Development", "Full Stack Development"),
+        ("custom:Kubernetes", "Kubernetes", "My own focus: Kubernetes"),
+    ],
+)
+def test_each_focus_mode_is_used_by_generation(
+    monkeypatch, focus, expected_prompt_text, expected_label
+):
+    captured = {}
+
+    def valid_response(prompt, **kwargs):
+        captured["prompt"] = prompt
+        return _valid_generation_response()
+
+    monkeypatch.setattr(interview_generator, "ask_llm_json", valid_response)
+    result = interview_generator.generate_mock_interview(
+        "Backend Developer", ["SQL"], ["Python"], [], focus_area=focus
+    )
+
+    assert expected_prompt_text in captured["prompt"]
+    assert result["focus_area"] == expected_label
+
+
+@pytest.mark.parametrize(
+    "invalid_focus",
+    ["custom:", "topic\ninjected prompt", "custom:SQL; injected prompt", "a" * 121],
+)
+def test_custom_focus_rejects_empty_or_unsafe_topics(invalid_focus):
+    with pytest.raises(ValueError):
+        interview_generator.resolve_interview_focus(invalid_focus)
+
+
+def test_single_character_custom_focus_is_supported():
+    assert interview_generator.resolve_interview_focus("custom:C") == (
+        "C",
+        "My own focus: C",
+    )
+
+
+def test_recommended_focus_uses_only_server_supplied_skills(monkeypatch):
+    captured = {}
+
+    def valid_response(prompt, **kwargs):
+        captured["prompt"] = prompt
+        return _valid_generation_response()
+
+    monkeypatch.setattr(interview_generator, "ask_llm_json", valid_response)
+    interview_generator.generate_mock_interview(
+        "Backend Developer",
+        ["Server Gap Skill"],
+        ["Server Weak Skill"],
+        [],
+        resume_skills=["Server Resume Skill"],
+        focus_area="recommended",
+    )
+
+    assert "Server Gap Skill" in captured["prompt"]
+    assert "Server Weak Skill" in captured["prompt"]
+    assert "Server Resume Skill" in captured["prompt"]
+    assert "server-verified role" in captured["prompt"]
+
+
+def test_recommended_focus_api_passes_authenticated_resume_skills(harness, monkeypatch):
+    client, session_factory, ids, _ = harness
+    with session_factory() as db:
+        resume = db.query(Resume).filter_by(user_id=ids[0]).one()
+        resume.extracted_skills = ["SQL", "Resume-Only Skill"]
+        db.commit()
+
+    captured = {}
+
+    def valid_response(prompt, **kwargs):
+        captured["prompt"] = prompt
+        return _valid_generation_response()
+
+    monkeypatch.setattr(interview_generator, "ask_llm_json", valid_response)
+    monkeypatch.setattr(
+        interview_router,
+        "generate_mock_interview",
+        interview_generator.generate_mock_interview,
+    )
+
+    response = client.get(
+        "/interview/generate",
+        headers=_headers(ids[0]),
+        params={"difficulty": "Beginner", "focus_area": "recommended"},
+    )
+
+    assert response.status_code == 200
+    assert "Resume-Only Skill" in captured["prompt"]
+
+
+@pytest.mark.parametrize(
+    "bad_question",
+    [
+        {
+            "question": "Question with duplicated options",
+            "skill": "SQL",
+            "options": [{"id": "a", "text": "same"}] * 4,
+            "correct_answer": "a",
+            "explanation": "same is correct",
+        },
+        {
+            "question": "Question with a missing answer key",
+            "skill": "SQL",
+            "options": [
+                {"id": "a", "text": "correct SQL method"},
+                {"id": "b", "text": "wrong method one"},
+                {"id": "c", "text": "wrong method two"},
+                {"id": "d", "text": "wrong method three"},
+            ],
+            "correct_answer": "missing",
+            "explanation": "correct SQL method is correct.",
+        },
+    ],
+)
+def test_mcq_validation_rejects_invalid_options_and_answer_reference(
+    monkeypatch, bad_question
+):
+    response = _valid_generation_response()
+    response["technical_questions"][0] = bad_question
+    monkeypatch.setattr(interview_generator, "ask_llm_json", lambda *args, **kwargs: response)
+
+    with pytest.raises(QuestionGenerationUnavailable):
+        interview_generator.generate_mock_interview("Engineer", ["SQL"], [], [])
+
+
+def test_interview_generation_rejects_invalid_custom_focus_and_difficulty(harness):
+    client, _, ids, _ = harness
+    headers = _headers(ids[0])
+    assert client.get(
+        "/interview/generate",
+        headers=headers,
+        params={"focus_area": "custom:SQL; injected prompt"},
+    ).status_code == 422
+    assert client.get(
+        "/interview/generate",
+        headers=headers,
+        params={"difficulty": "Expert"},
+    ).status_code == 422
+
+
+def test_interview_generation_failure_returns_safe_recoverable_error(harness, monkeypatch):
+    client, session_factory, ids, _ = harness
+
+    def unavailable(**kwargs):
+        raise QuestionGenerationUnavailable("private failure")
+
+    monkeypatch.setattr(interview_router, "generate_mock_interview", unavailable)
+
+    response = client.get("/interview/generate", headers=_headers(ids[0]))
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Interview questions are temporarily unavailable. Please retry shortly."
+    assert "private failure" not in response.text
+    with session_factory() as db:
+        assert db.query(InterviewSession).filter_by(user_id=ids[0]).count() == 0
+
+
+def test_interview_rate_limit_is_actionable_and_does_not_persist_session(harness, monkeypatch):
+    client, session_factory, ids, _ = harness
+
+    def rate_limited(**kwargs):
+        raise QuestionGenerationUnavailable(
+            "private provider failure",
+            category="rate_limit_exceeded",
+            retry_after_seconds=12,
+        )
+
+    monkeypatch.setattr(interview_router, "generate_mock_interview", rate_limited)
+
+    response = client.get("/interview/generate", headers=_headers(ids[0]))
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "12"
+    assert response.json()["detail"] == (
+        "Interview generation is rate-limited. Please wait before retrying."
+    )
+    assert "private provider failure" not in response.text
+    with session_factory() as db:
+        assert db.query(InterviewSession).filter_by(user_id=ids[0]).count() == 0
+
+
+def test_interview_quota_failure_is_distinct_and_preserves_prior_session(harness, monkeypatch):
+    client, session_factory, ids, _ = harness
+    prior = InterviewSession(
+        user_id=ids[0],
+        target_role="Backend Developer",
+        questions=_question_set(),
+        answers=[],
+        scores=[],
+        weak_skills=[],
+        overall_score=0,
+    )
+    with session_factory() as db:
+        db.add(prior)
+        db.commit()
+        prior_id = prior.id
+
+    def quota_exhausted(**kwargs):
+        raise QuestionGenerationUnavailable(
+            "private quota detail",
+            category="quota_exceeded",
+        )
+
+    monkeypatch.setattr(interview_router, "generate_mock_interview", quota_exhausted)
+    response = client.get("/interview/generate", headers=_headers(ids[0]))
+
+    assert response.status_code == 429
+    assert "quota" in response.json()["detail"].lower()
+    assert "private quota detail" not in response.text
+    with session_factory() as db:
+        sessions = db.query(InterviewSession).filter_by(user_id=ids[0]).all()
+        assert len(sessions) == 1
+        assert sessions[0].id == prior_id
+
+
+@pytest.mark.parametrize(
+    ("category", "expected_detail"),
+    [
+        ("provider_bad_request", "provider rejected"),
+        ("authentication", "provider configuration"),
+        ("model_unavailable", "configured interview model"),
+        ("timeout", "timed out"),
+        ("network", "could not be reached"),
+    ],
+)
+def test_provider_failure_categories_have_safe_actionable_api_messages(
+    harness, monkeypatch, category, expected_detail
+):
+    client, _, ids, _ = harness
+
+    def unavailable(**kwargs):
+        raise QuestionGenerationUnavailable(
+            "private provider response",
+            category=category,
+        )
+
+    monkeypatch.setattr(interview_router, "generate_mock_interview", unavailable)
+    response = client.get("/interview/generate", headers=_headers(ids[0]))
+
+    assert response.status_code == 503
+    assert expected_detail in response.json()["detail"].lower()
+    assert "private provider response" not in response.text

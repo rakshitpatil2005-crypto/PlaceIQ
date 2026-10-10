@@ -1,4 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float, JSON, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import (
+    Column, Integer, String, Float, JSON, DateTime, ForeignKey, UniqueConstraint,
+    Index, text,
+)
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
@@ -136,3 +139,83 @@ class AssessmentAttempt(Base):
     result = Column(JSON, nullable=True)
     submitted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class PremiumSubscription(Base):
+    __tablename__ = "premium_subscriptions"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_premium_subscription_user"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    plan = Column(String, nullable=False, default="free")
+    status = Column(String, nullable=False, default="inactive")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class PremiumAccessRequest(Base):
+    __tablename__ = "premium_access_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    status = Column(String, nullable=False, default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class PremiumPaymentOrder(Base):
+    __tablename__ = "premium_payment_orders"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_premium_payment_order_idempotency"),
+        UniqueConstraint("receipt", name="uq_premium_payment_order_receipt"),
+        UniqueConstraint("razorpay_order_id", name="uq_premium_payment_order_provider_id"),
+        Index(
+            "uq_premium_payment_order_open_user",
+            "user_id",
+            unique=True,
+            sqlite_where=text("status IN ('creating', 'creation_unknown', 'created')"),
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    idempotency_key = Column(String(64), nullable=False)
+    receipt = Column(String(40), nullable=False)
+    razorpay_order_id = Column(String(64), nullable=True)
+    amount = Column(Integer, nullable=False)
+    currency = Column(String(3), nullable=False)
+    status = Column(String(24), nullable=False, default="creating")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class PremiumPaymentAttempt(Base):
+    __tablename__ = "premium_payment_attempts"
+    __table_args__ = (
+        UniqueConstraint("razorpay_payment_id", name="uq_premium_payment_attempt_provider_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(
+        Integer,
+        ForeignKey("premium_payment_orders.id"),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    razorpay_payment_id = Column(String(64), nullable=False)
+    amount = Column(Integer, nullable=False)
+    currency = Column(String(3), nullable=False)
+    status = Column(String(24), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class PremiumPaymentWebhookEvent(Base):
+    __tablename__ = "premium_payment_webhook_events"
+    __table_args__ = (
+        UniqueConstraint("provider_event_id", name="uq_premium_webhook_provider_event"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    provider_event_id = Column(String(128), nullable=False)
+    event_type = Column(String(64), nullable=False)
+    processed_at = Column(DateTime, default=datetime.utcnow, nullable=False)

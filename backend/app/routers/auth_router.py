@@ -3,7 +3,14 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from app.database import get_db
 from app.models import User
-from app.auth import get_password_hash, verify_password, create_access_token, get_current_user
+from app.auth import (
+    PLACEMENT_STAFF_ROLE,
+    get_current_admin,
+    get_password_hash,
+    verify_password,
+    create_access_token,
+    get_current_user,
+)
 
 router = APIRouter(prefix="/auth")
 
@@ -22,6 +29,10 @@ class ProfileUpdate(BaseModel):
     branch: str
     semester: int
     target_role: str
+
+
+class PlacementStaffUpdate(BaseModel):
+    active: bool
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
@@ -60,3 +71,28 @@ def update_profile(profile_data: ProfileUpdate, current_user: User = Depends(get
     current_user.target_role = profile_data.target_role
     db.commit()
     return {"message": "Profile updated successfully"}
+
+
+@router.put("/admin/users/{user_id}/placement-staff")
+def set_placement_staff_access(
+    update: PlacementStaffUpdate,
+    user_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.role not in ("student", PLACEMENT_STAFF_ROLE):
+        raise HTTPException(
+            status_code=409,
+            detail="Placement staff access can only be changed for student accounts.",
+        )
+
+    user.role = PLACEMENT_STAFF_ROLE if update.active else "student"
+    db.commit()
+    return {
+        "user_id": user.id,
+        "role": user.role,
+        "updated_by_admin_id": current_admin.id,
+    }

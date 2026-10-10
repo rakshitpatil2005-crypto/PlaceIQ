@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test": "node --test src/components/RoadmapLearningLink.test.js src/components/StudyCoachAnswer.test.js src/utils/practice.test.js src/utils/assessment.test.js src/utils/mastery.test.js src/utils/dashboardRecommendations.test.js src/utils/adaptivePriority.test.js src/utils/recommendationActions.test.js src/utils/studyCoach.test.js src/utils/learningPageState.test.js",
+    "test": "node --test src/components/RoadmapLearningLink.test.js src/components/StudyCoachAnswer.test.js src/utils/practice.test.js src/utils/assessment.test.js src/utils/mastery.test.js src/utils/dashboardRecommendations.test.js src/utils/adaptivePriority.test.js src/utils/recommendationActions.test.js src/utils/studyCoach.test.js src/utils/learningPageState.test.js src/utils/interviewFocus.test.js src/utils/singleFlight.test.js src/utils/premiumPayment.test.js src/pages/Interview.test.js src/pages/Premium.test.js src/pages/PlacementDashboard.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

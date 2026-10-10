@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Map, CheckCircle2, Circle, Loader, AlertCircle, Sparkles, CheckSquare } from 'lucide-react';
 import api from '../api';
 import RoadmapLearningLink from '../components/RoadmapLearningLink.js';
 import { getAdaptivePriorityDisplay } from '../utils/adaptivePriority.js';
+import { runSingleFlight } from '../utils/singleFlight.js';
 
 export default function Roadmap() {
   const [roadmap, setRoadmap] = useState(null);
@@ -14,6 +15,8 @@ export default function Roadmap() {
   const [learningMappings, setLearningMappings] = useState({});
   const [mappingError, setMappingError] = useState('');
   const [selectedRole, setSelectedRole] = useState('Embedded Systems Engineer');
+  const generateInFlight = useRef(false);
+  const adaptInFlight = useRef(false);
 
   const ROLES = [
     "Embedded Systems Engineer",
@@ -76,33 +79,37 @@ export default function Roadmap() {
   }, []);
 
   const handleGenerate = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const { data } = await api.post('/roadmap/generate', { target_role: selectedRole });
-      setRoadmap(data);
-      setLearningMappings({});
-      await fetchLearningMappings();
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to generate roadmap.');
-    } finally {
-      setLoading(false);
-    }
+    return runSingleFlight(generateInFlight, async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const { data } = await api.post('/roadmap/generate', { target_role: selectedRole });
+        setRoadmap(data);
+        setLearningMappings({});
+        await fetchLearningMappings();
+      } catch (err) {
+        setError(err.response?.data?.detail || 'Failed to generate roadmap.');
+      } finally {
+        setLoading(false);
+      }
+    });
   };
 
   const handleAdapt = async () => {
-    setAdapting(true);
-    setError('');
-    setAdaptationMessage('');
-    try {
-      const { data } = await api.post('/roadmap/adapt');
-      setRoadmap(data.roadmap);
-      setAdaptationMessage(data.message);
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to adapt roadmap priorities.');
-    } finally {
-      setAdapting(false);
-    }
+    return runSingleFlight(adaptInFlight, async () => {
+      setAdapting(true);
+      setError('');
+      setAdaptationMessage('');
+      try {
+        const { data } = await api.post('/roadmap/adapt');
+        setRoadmap(data.roadmap);
+        setAdaptationMessage(data.message);
+      } catch (err) {
+        setError(err.response?.data?.detail || 'Failed to adapt roadmap priorities.');
+      } finally {
+        setAdapting(false);
+      }
+    });
   };
 
   const toggleTask = async (weekIndex, taskIndex) => {

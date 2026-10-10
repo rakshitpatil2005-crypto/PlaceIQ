@@ -6,6 +6,7 @@ import LearningLessonContent from '../components/LearningLessonContent';
 import StudyCoachAnswer from '../components/StudyCoachAnswer';
 import { getActiveCoachForm } from '../utils/learningPageState';
 import { createStudyCoachRequest } from '../utils/studyCoach';
+import { runSingleFlight } from '../utils/singleFlight';
 
 export default function Learning() {
   const [searchParams] = useSearchParams();
@@ -22,6 +23,8 @@ export default function Learning() {
   const [coachErrorState, setCoachErrorState] = useState(null);
   const [coachResultState, setCoachResultState] = useState(null);
   const coachRequestSequence = useRef(0);
+  const practiceInFlight = useRef(false);
+  const assessmentInFlight = useRef(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
@@ -94,36 +97,40 @@ export default function Learning() {
 
   const startPractice = async () => {
     if (!course || !lesson || startingPractice) return;
-    setStartingPractice(true);
-    setError('');
-    try {
-      const { data } = await api.post('/learning/practice', {
-        skill_id: course.skill_id,
-        lesson_id: lesson.lesson_id,
-      });
-      navigate(`/practice/${data.id}`);
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Unable to prepare practice for this lesson.');
-    } finally {
-      setStartingPractice(false);
-    }
+    return runSingleFlight(practiceInFlight, async () => {
+      setStartingPractice(true);
+      setError('');
+      try {
+        const { data } = await api.post('/learning/practice', {
+          skill_id: course.skill_id,
+          lesson_id: lesson.lesson_id,
+        });
+        navigate(`/practice/${data.id}`);
+      } catch (err) {
+        setError(err.response?.data?.detail || 'Unable to prepare practice for this lesson.');
+      } finally {
+        setStartingPractice(false);
+      }
+    });
   };
 
   const startAssessment = async () => {
     if (!course || !lesson || startingAssessment) return;
-    setStartingAssessment(true);
-    setError('');
-    try {
-      const { data } = await api.post('/learning/assessment', {
-        skill_id: course.skill_id,
-        lesson_id: lesson.lesson_id,
-      });
-      navigate(`/assessment/${data.id}`);
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Unable to prepare an assessment for this lesson.');
-    } finally {
-      setStartingAssessment(false);
-    }
+    return runSingleFlight(assessmentInFlight, async () => {
+      setStartingAssessment(true);
+      setError('');
+      try {
+        const { data } = await api.post('/learning/assessment', {
+          skill_id: course.skill_id,
+          lesson_id: lesson.lesson_id,
+        });
+        navigate(`/assessment/${data.id}`);
+      } catch (err) {
+        setError(err.response?.data?.detail || 'Unable to prepare an assessment for this lesson.');
+      } finally {
+        setStartingAssessment(false);
+      }
+    });
   };
 
   const submitStudyCoachRequest = async (event) => {

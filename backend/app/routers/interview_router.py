@@ -1,18 +1,36 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Literal, Optional, List
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from app.database import get_db
 from app.auth import get_current_user
 from app.models import User, Resume, GapReport, InterviewSession
 from app.services.gap_analyzer import analyze_skill_gap
-from app.services.interview_generator import generate_mock_interview
+from app.services.interview_generator import generate_mock_interview, resolve_interview_focus
 from app.services.interview_evaluator import evaluate_candidate_answer
 from app.services.question_support import QuestionGenerationUnavailable
 from app.services.skill_extractor import normalize_skill
 
 router = APIRouter()
+
+_INTERVIEW_VALIDATION_CATEGORIES = {
+    "malformed_json",
+    "invalid_response_shape",
+    "missing_question_groups",
+    "question_count",
+    "invalid_question_type",
+    "missing_question_fields",
+    "option_count",
+    "missing_option_fields",
+    "duplicate_option_ids",
+    "duplicate_option_text",
+    "invalid_correct_answer",
+    "invalid_options",
+    "duplicate_question",
+    "repeated_option_set",
+    "missing_hr_question",
+}
 
 
 def _normalize_skill_list(raw_skills: list) -> list[str]:
@@ -296,8 +314,8 @@ def get_current_interview_session(current_user: User = Depends(get_current_user)
 
 @router.get("/interview/generate")
 def generate_interview_questions(
-    difficulty: str = Query(default="Intermediate", max_length=40),
-    focus_area: str = Query(default="", max_length=120),
+    difficulty: Literal["Beginner", "Intermediate", "Advanced"] = Query(default="Intermediate"),
+    focus_area: str = Query(default="", max_length=130),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -344,6 +362,7 @@ def generate_interview_questions(
 
     # 2. Generate 8-question mock interview
     try:
+        resolve_interview_focus(focus_area)
         result = generate_mock_interview(
             target_role=target_role,
             gap_skills=gap_skills,
@@ -351,12 +370,51 @@ def generate_interview_questions(
             projects=projects,
             difficulty=difficulty,
             focus_area=focus_area,
+            resume_skills=resume_skills,
         )
     except QuestionGenerationUnavailable as error:
+        if error.category in {"rate_limit_exceeded", "quota_exceeded"}:
+            headers = {}
+            if error.retry_after_seconds is not None:
+                headers["Retry-After"] = str(max(1, round(error.retry_after_seconds)))
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Provider quota is currently exhausted. Check the provider's usage limits before retrying."
+                    if error.category == "quota_exceeded"
+                    else "Interview generation is rate-limited. Please wait before retrying."
+                ),
+                headers=headers or None,
+            ) from error
+        provider_messages = {
+            "provider_bad_request": "The provider rejected the interview-generation request. Please retry later.",
+            "authentication": "Interview generation is temporarily unavailable due to provider configuration.",
+            "model_unavailable": "The configured interview model is currently unavailable.",
+            "timeout": "Interview generation timed out. Your current session is unchanged; please retry.",
+            "network": "The interview provider could not be reached. Your current session is unchanged; please retry.",
+            "provider_server_error": "The interview provider is temporarily unavailable. Please retry shortly.",
+            "provider_busy": "Another AI request is in progress. Please retry shortly.",
+        }
+        headers = (
+            {"Retry-After": str(max(1, round(error.retry_after_seconds)))}
+            if error.category == "provider_busy"
+            and error.retry_after_seconds is not None
+            else None
+        )
         raise HTTPException(
             status_code=503,
-            detail="Interview questions are temporarily unavailable. Please try again.",
+            detail=(
+                f"Generated interview validation failed ({error.category}). Please retry."
+                if error.category in _INTERVIEW_VALIDATION_CATEGORIES
+                else provider_messages.get(
+                    error.category,
+                    "Interview questions are temporarily unavailable. Please retry shortly.",
+                )
+            ),
+            headers=headers,
         ) from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
     questions = result.get("questions", [])
 

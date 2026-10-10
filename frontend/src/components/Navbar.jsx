@@ -1,63 +1,152 @@
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { LayoutDashboard, FileText, Target, Map, MessagesSquare, LogOut, GraduationCap, Sparkles, Award } from 'lucide-react';
+import {
+  ChevronLeft, ChevronRight, GraduationCap, LogOut, Menu, Sparkles,
+} from 'lucide-react';
+import api from '../api';
+import { getNavigationItems } from '../utils/placementDashboard';
 
-export default function Navbar() {
+export default function Navbar({ collapsed, onCollapsedChange }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const [plan, setPlan] = useState(null);
+  const [role, setRole] = useState(null);
+  const [mobileOpenPath, setMobileOpenPath] = useState(null);
+  const mobileOpen = mobileOpenPath === location.pathname;
+  const navItems = getNavigationItems(role);
+
+  useEffect(() => {
+    let active = true;
+    api.get('/auth/me')
+      .then(({ data }) => {
+        if (active) setRole(data.role || null);
+      })
+      .catch((error) => {
+        console.error('Unable to load the user role for placement navigation.', error);
+        if (active) setRole(null);
+      });
+    api.get('/premium/plan')
+      .then(({ data }) => {
+        if (active) setPlan(data.plan === 'premium' ? 'premium' : 'free');
+      })
+      .catch(() => {
+        if (active) setPlan(null);
+      });
+    return () => { active = false; };
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     navigate('/login');
   };
 
-  const navItems = [
-    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/resume', icon: FileText, label: 'Resume' },
-    { path: '/gap', icon: Target, label: 'Skill Gap' },
-    { path: '/roadmap', icon: Map, label: 'Roadmap' },
-    { path: '/mastery', icon: Award, label: 'Skill Mastery' },
-    { path: '/interview', icon: MessagesSquare, label: 'Interview' },
-    { path: '/readiness', icon: Sparkles, label: 'Readiness' },
-  ];
+  const activePath = (path) => (
+    location.pathname === path
+    || (path === '/placement' && location.pathname.startsWith('/placement/students/'))
+    || (path === '/learn' && ['/practice/', '/assessment/'].some((prefix) => location.pathname.startsWith(prefix)))
+  );
 
   return (
-    <nav className="topbar">
-      <div className="topbar-inner">
-        <div className="brand-wrap">
-          <div className="brand-mark">
-            <GraduationCap size={22} />
-          </div>
-          <div>
+    <>
+      <div className="mobile-sidebar-trigger">
+        <div className="mobile-sidebar-brand">
+          <span className="brand-mark"><GraduationCap size={19} aria-hidden="true" /></span>
+          <span>PlaceIQ</span>
+        </div>
+        <button
+          type="button"
+          className="mobile-menu-button"
+          aria-label="Open navigation menu"
+          aria-expanded={mobileOpen}
+          aria-controls="main-sidebar"
+          onClick={() => setMobileOpenPath(location.pathname)}
+        >
+          <Menu size={20} aria-hidden="true" />
+        </button>
+      </div>
+
+      {mobileOpen && (
+        <button
+          type="button"
+          className="sidebar-overlay"
+          aria-label="Close navigation menu"
+          onClick={() => setMobileOpenPath(null)}
+        />
+      )}
+
+      <aside
+        className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}
+        id="main-sidebar"
+        aria-label="Main navigation"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setMobileOpenPath(null);
+        }}
+      >
+        <div className="sidebar-brand">
+          <span className="brand-mark"><GraduationCap size={21} aria-hidden="true" /></span>
+          <div className="brand-copy">
             <div className="brand-text">PlaceIQ</div>
             <div className="brand-subtext">Career intelligence</div>
           </div>
         </div>
 
-        <div className="nav-items desktop-nav">
+        <p className="sidebar-section-label">Workspace</p>
+        <nav className="sidebar-nav" aria-label="Workspace">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
             const Icon = item.icon;
+            const active = activePath(item.path);
             return (
-              <Link key={item.path} to={item.path} className={`nav-link ${isActive ? 'active' : ''}`}>
-                <Icon size={18} />
-                <span>{item.label}</span>
-                {isActive && <motion.span layoutId="nav-pill" className="nav-pill" />}
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`sidebar-link ${active ? 'active' : ''}`}
+                aria-current={active ? 'page' : undefined}
+                aria-label={item.label}
+                title={collapsed ? item.label : undefined}
+                onClick={() => setMobileOpenPath(null)}
+              >
+                <span className="sidebar-link-icon"><Icon size={19} aria-hidden="true" /></span>
+                <span className="sidebar-link-label">{item.label}</span>
               </Link>
             );
           })}
-        </div>
+        </nav>
 
-        <div className="nav-actions">
-          <div className="status-chip">
-            <Sparkles size={14} />
-            <span>Premium plan</span>
-          </div>
-          <button onClick={handleLogout} className="logout-button" aria-label="Logout">
-            <LogOut size={18} />
+        <div className="sidebar-bottom">
+          <Link
+            to="/premium"
+            className="sidebar-plan"
+            aria-label={`Current plan: ${plan || 'unavailable'}`}
+            title={collapsed ? `Current plan: ${plan || 'unavailable'}` : undefined}
+            onClick={() => setMobileOpenPath(null)}
+          >
+            <Sparkles size={18} aria-hidden="true" />
+            <span className="sidebar-bottom-label">
+              {plan === 'premium' ? 'Premium access' : plan === 'free' ? 'Core plan' : 'Plan unavailable'}
+            </span>
+          </Link>
+          <button
+            type="button"
+            className="sidebar-control sidebar-collapse"
+            aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+            title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+            onClick={() => onCollapsedChange(!collapsed)}
+          >
+            {collapsed ? <ChevronRight size={18} aria-hidden="true" /> : <ChevronLeft size={18} aria-hidden="true" />}
+            <span className="sidebar-bottom-label">{collapsed ? 'Expand sidebar' : 'Collapse sidebar'}</span>
+          </button>
+          <button
+            type="button"
+            className="sidebar-control"
+            aria-label="Logout"
+            title={collapsed ? 'Logout' : undefined}
+            onClick={handleLogout}
+          >
+            <LogOut size={18} aria-hidden="true" />
+            <span className="sidebar-bottom-label">Log out</span>
           </button>
         </div>
-      </div>
-    </nav>
+      </aside>
+    </>
   );
 }

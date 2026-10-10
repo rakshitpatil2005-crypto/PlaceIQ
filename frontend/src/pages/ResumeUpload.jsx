@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { UploadCloud, FileText, CheckCircle, AlertCircle, Sparkles, Target, TrendingUp } from 'lucide-react';
 import api from '../api';
+import { runSingleFlight } from '../utils/singleFlight';
 
 export default function ResumeUpload() {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const uploadInFlight = useRef(false);
 
   const handleUpload = async (e) => {
     e.preventDefault();
@@ -16,19 +18,27 @@ export default function ResumeUpload() {
     const formData = new FormData();
     formData.append('file', file);
 
-    setLoading(true);
-    setError('');
+    return runSingleFlight(uploadInFlight, async () => {
+      setLoading(true);
+      setError('');
 
-    try {
-      const { data } = await api.post('/resume/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      setResult(data.data);
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to analyze resume.');
-    } finally {
-      setLoading(false);
-    }
+      try {
+        const { data } = await api.post('/resume/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        setResult(data.data);
+      } catch (err) {
+        const detail = err.response?.data?.detail || 'Failed to analyze resume.';
+        const retryAfter = Number(err.response?.headers?.['retry-after']);
+        setError(
+          retryAfter > 0
+            ? `${detail} Try again in about ${Math.ceil(retryAfter)} seconds.`
+            : detail,
+        );
+      } finally {
+        setLoading(false);
+      }
+    });
   };
 
   return (

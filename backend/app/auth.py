@@ -10,6 +10,7 @@ from app.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+PLACEMENT_STAFF_ROLE = "placement_staff"
 
 def get_password_hash(password: str):
     return pwd_context.hash(password)
@@ -45,4 +46,13 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 def get_current_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    return current_user
+
+
+def get_current_placement_staff(current_user: User = Depends(get_current_user)):
+    if current_user.role not in (PLACEMENT_STAFF_ROLE, "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Placement-cell staff privileges required",
+        )
     return current_user
