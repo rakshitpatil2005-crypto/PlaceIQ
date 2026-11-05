@@ -5,6 +5,7 @@ import { Mail, Lock, User, BookOpen, GraduationCap, ArrowRight, Sparkles, Trendi
 import api from '../api';
 import { SUPPORTED_ROLES } from '../data/roles';
 import { getAuthenticationErrorMessage } from '../utils/authError';
+import usePersistedState from '../utils/usePersistedState';
 
 export default function Login() {
   const navigate = useNavigate();

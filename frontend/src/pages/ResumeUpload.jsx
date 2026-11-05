@@ -3,11 +3,12 @@ import { motion } from 'framer-motion';
 import { UploadCloud, FileText, CheckCircle, AlertCircle, Sparkles, Target, TrendingUp } from 'lucide-react';
 import api from '../api';
 import { runSingleFlight } from '../utils/singleFlight';
+import usePersistedState from '../utils/usePersistedState';
 
 export default function ResumeUpload() {
-  const [file, setFile] = useState(null);
+  const [file, setFile] = usePersistedState('placeiq_resume',null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = usePersistedState('placeiq_resume_result', null);
   const [error, setError] = useState('');
   const uploadInFlight = useRef(false);
 

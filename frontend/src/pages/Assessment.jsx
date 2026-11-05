@@ -3,11 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, ClipboardCheck, Loader } from 'lucide-react';
 import api from '../api';
 import { validateAssessmentAnswers } from '../utils/assessment';
+import usePersistedState from '../utils/usePersistedState';
 
 export default function Assessment() {
   const { assessmentId } = useParams();
   const navigate = useNavigate();
-  const [assessment, setAssessment] = useState(null);
+  const [assessment, setAssessment] = usePersistedState('placeiq_assessment', null);
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);

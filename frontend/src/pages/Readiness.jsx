@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { AlertCircle, ArrowRight, Gauge, Lightbulb, Sparkles, Target, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../api';
+import usePersistedState from '../utils/usePersistedState';
 
 const clamp = (value) => Math.max(0, Math.min(100, Number(value) || 0));
 

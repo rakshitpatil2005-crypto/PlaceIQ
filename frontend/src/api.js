@@ -26,6 +26,9 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401 && error.config?.url !== '/auth/login') {
       localStorage.removeItem('token');
+      Object.keys(localStorage)
+  .filter((k) => k.startsWith('placeiq_'))
+  .forEach((k) => localStorage.removeItem(k));
       window.location.href = '/login';
     }
     return Promise.reject(error);

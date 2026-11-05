@@ -12,6 +12,7 @@ import {
   interviewGenerationError,
   interviewGenerationReducer,
 } from '../utils/interviewFocus';
+import usePersistedState from '../utils/usePersistedState';
 
 const TECHNICAL_COUNT = 5;
 const toTwoDecimals = (value) => Math.round(value * 100) / 100;

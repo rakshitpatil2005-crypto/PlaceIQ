@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import api from '../api';
 import { getDashboardRecommendations } from '../utils/dashboardRecommendations';
 import { recommendationLinkLabel } from '../utils/recommendationActions';
+import usePersistedState from '../utils/usePersistedState';
 
 const defaultProfile = {
   name: 'Student',

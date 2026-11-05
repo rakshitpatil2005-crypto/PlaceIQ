@@ -5,9 +5,10 @@ import api from '../api';
 import RoadmapLearningLink from '../components/RoadmapLearningLink.js';
 import { getAdaptivePriorityDisplay } from '../utils/adaptivePriority.js';
 import { runSingleFlight } from '../utils/singleFlight.js';
+import usePersistedState from '../utils/usePersistedState';
 
 export default function Roadmap() {
-  const [roadmap, setRoadmap] = useState(null);
+  const [roadmap, setRoadmap] = usePersistedState('placeiq_roadmap',null);
   const [loading, setLoading] = useState(false);
   const [adapting, setAdapting] = useState(false);
   const [adaptationMessage, setAdaptationMessage] = useState('');

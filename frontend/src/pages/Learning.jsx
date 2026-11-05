@@ -7,21 +7,22 @@ import StudyCoachAnswer from '../components/StudyCoachAnswer';
 import { getActiveCoachForm } from '../utils/learningPageState';
 import { createStudyCoachRequest } from '../utils/studyCoach';
 import { runSingleFlight } from '../utils/singleFlight';
+import usePersistedState from '../utils/usePersistedState';
 
 export default function Learning() {
   const [searchParams] = useSearchParams();
   const skillId = searchParams.get('skill') || '';
   const requestedLessonId = searchParams.get('lesson') || '';
-  const [course, setCourse] = useState(null);
+  const [course, setCourse] = usePersistedState('placeiq_learning_course', null);
   const [lessonIndex, setLessonIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [startingPractice, setStartingPractice] = useState(false);
   const [startingAssessment, setStartingAssessment] = useState(false);
-  const [coachForm, setCoachForm] = useState(null);
+  const [coachForm, setCoachForm] = usePersistedState('placeiq_learning_coach_form', null);
   const [coachSubmitting, setCoachSubmitting] = useState(false);
-  const [coachErrorState, setCoachErrorState] = useState(null);
-  const [coachResultState, setCoachResultState] = useState(null);
+  const [coachErrorState, setCoachErrorState] = usePersistedState('placeiq_learning_coach_error', null);
+  const [coachResultState, setCoachResultState] = usePersistedState('placeiq_learning_coach_result', null);
   const coachRequestSequence = useRef(0);
   const practiceInFlight = useRef(false);
   const assessmentInFlight = useRef(false);

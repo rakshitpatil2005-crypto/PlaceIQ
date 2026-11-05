@@ -3,11 +3,12 @@ import { motion } from 'framer-motion';
 import { Target, CheckCircle2, AlertCircle, XCircle, Sparkles, ArrowRight } from 'lucide-react';
 import api from '../api';
 import { runSingleFlight } from '../utils/singleFlight';
+import usePersistedState from '../utils/usePersistedState';
 
 export default function SkillGap() {
   const [role, setRole] = useState('Embedded Systems Engineer');
   const [loading, setLoading] = useState(false);
-  const [report, setReport] = useState(null);
+  const [report, setReport] = usePersistedState('placeiq_skillgap', null);
   const [error, setError] = useState('');
   const analysisInFlight = useRef(false);
 

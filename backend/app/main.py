@@ -19,6 +19,33 @@ from app.routers import (
 
 # Initialize database tables
 Base.metadata.create_all(bind=engine)
+import os
+from app.database import SessionLocal
+from app.models import User
+from app.auth import PLACEMENT_STAFF_ROLE, get_password_hash
+
+def ensure_placement_head():
+    email = os.getenv("HEAD_EMAIL")
+    password = os.getenv("HEAD_PASSWORD")
+    if not email or not password:
+        return
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if user is None:
+            db.add(User(
+                name="Placement Head",
+                email=email,
+                hashed_password=get_password_hash(password),
+                role=PLACEMENT_STAFF_ROLE,
+            ))
+        else:
+            user.role = PLACEMENT_STAFF_ROLE
+        db.commit()
+    finally:
+        db.close()
+
+ensure_placement_head()
 
 app = FastAPI(title="PlaceIQ API")
 

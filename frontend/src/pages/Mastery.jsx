@@ -3,6 +3,7 @@ import { Award, BookOpenCheck, Loader, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../api';
 import { formatMasteryScore, masteryStatusLabel } from '../utils/mastery';
+import usePersistedState from '../utils/usePersistedState';
 
 function statusClasses(status) {
   if (status === 'demonstrated_proficiency' || status === 'strength') {
@@ -15,7 +16,7 @@ function statusClasses(status) {
 }
 
 export default function Mastery() {
-  const [mastery, setMastery] = useState(null);
+  const [mastery, setMastery] = usePersistedState('placeiq_mastery', null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 

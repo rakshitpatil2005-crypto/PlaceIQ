@@ -3,11 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CheckCircle2, Circle, Loader, RotateCcw } from 'lucide-react';
 import api from '../api';
 import { validatePracticeAnswer } from '../utils/practice';
+import usePersistedState from '../utils/usePersistedState';
 
 export default function Practice() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const [practice, setPractice] = useState(null);
+  const [practice, setPractice] = usePersistedState('place_iq_practice',null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
