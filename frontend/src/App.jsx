@@ -1,5 +1,6 @@
-import { lazy, Suspense, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import api from './api';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Navbar from './components/Navbar';
@@ -19,7 +20,23 @@ function PrivateRoute({ children }) {
   const token = localStorage.getItem('token');
   return token ? children : <Navigate to="/login" />;
 }
+function RoleGate({ children }) {
+  const location = useLocation();
+  const [role, setRole] = useState(undefined);
 
+  useEffect(() => {
+    api.get('/auth/me')
+      .then(({ data }) => setRole(data.role || null))
+      .catch(() => setRole(null));
+  }, []);
+
+  if (role === undefined) return null;
+  const isHead = !!role && !['student', 'admin'].includes(role);
+  if (isHead && !location.pathname.startsWith('/placement')) {
+    return <Navigate to="/placement" replace />;
+  }
+  return children;
+}
 function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   return (

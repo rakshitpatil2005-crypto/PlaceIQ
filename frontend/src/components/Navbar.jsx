@@ -124,12 +124,14 @@ export default function Navbar({ collapsed, onCollapsedChange }) {
   const [moreOpenPath, setMoreOpenPath] = useState(null);
   const moreButtonRef = useRef(null);
   const moreOpen = moreOpenPath === location.pathname;
-  const navItems = getNavigationItems(role);
-  const primaryItems = getMobilePrimaryItems(role);
-  const moreItems = getMobileMoreItems(role).map((item) => ({
-    ...item,
-    active: isNavigationItemActive(location.pathname, item.path),
-  }));
+  const isHead = !!role && !['student', 'admin'].includes(role);
+const headOnly = (items) => (isHead ? items.filter((i) => i.path.startsWith('/placement')) : items);
+const navItems = headOnly(getNavigationItems(role));
+const primaryItems = headOnly(getMobilePrimaryItems(role));
+const moreItems = headOnly(getMobileMoreItems(role)).map((item) => ({
+  ...item,
+  active: isNavigationItemActive(location.pathname, item.path),
+}));
   const moreIsActive = moreItems.some((item) => isNavigationItemActive(location.pathname, item.path));
 
   useEffect(() => {
@@ -159,10 +161,13 @@ export default function Navbar({ collapsed, onCollapsedChange }) {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/login');
-  };
+ const handleLogout = () => {
+  localStorage.removeItem('token');
+  Object.keys(localStorage)
+    .filter((k) => k.startsWith('placeiq_'))
+    .forEach((k) => localStorage.removeItem(k));
+  navigate('/login');
+};
 
   return (
     <>
