@@ -158,16 +158,16 @@ export default function Interview() {
     if (!evaluation) return null;
     if (evaluation.question_type === 'technical_mcq') {
       return (
-        <section className={`rounded-xl border p-5 space-y-2 ${evaluation.is_correct ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+        <section className={`min-w-0 space-y-2 rounded-xl border p-4 sm:p-5 ${evaluation.is_correct ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
           <h4 className="font-bold flex items-center gap-2">
             <CheckCircle size={18} /> {evaluation.is_correct ? 'Correct answer' : 'Not quite'} · {evaluation.score_out_of_10}/10
           </h4>
-          <p className="text-sm text-gray-700">{evaluation.explanation}</p>
+          <p className="break-words text-sm text-gray-700">{evaluation.explanation}</p>
         </section>
       );
     }
     return (
-      <section className="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-5">
+      <section className="min-w-0 space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h4 className="font-bold text-gray-900">HR answer feedback</h4>
           <span className="rounded-full bg-brand-50 px-3 py-1 text-sm font-bold text-brand-700">Score: {evaluation.score_out_of_10}/10</span>
@@ -177,18 +177,18 @@ export default function Interview() {
         )}
         <div className="rounded-lg border border-green-100 bg-green-50/60 p-4">
           <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-green-800"><ThumbsUp size={14} /> Strengths</p>
-          <p className="text-sm text-gray-700">{evaluation.strengths}</p>
+          <p className="break-words text-sm text-gray-700">{evaluation.strengths}</p>
         </div>
         <div className="rounded-lg border border-amber-100 bg-amber-50/60 p-4">
           <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-amber-800"><TrendingUp size={14} /> Missing points and improvements</p>
-          <p className="text-sm text-gray-700">{evaluation.missing_points}</p>
-          <p className="mt-2 text-sm text-gray-700">{evaluation.improvement_suggestions || evaluation.improvements}</p>
+          <p className="break-words text-sm text-gray-700">{evaluation.missing_points}</p>
+          <p className="mt-2 break-words text-sm text-gray-700">{evaluation.improvement_suggestions || evaluation.improvements}</p>
         </div>
-        {evaluation.feedback && <p className="text-sm leading-relaxed text-gray-700">{evaluation.feedback}</p>}
+        {evaluation.feedback && <p className="break-words text-sm leading-relaxed text-gray-700">{evaluation.feedback}</p>}
         {evaluation.ideal_answer && (
           <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-4">
             <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-blue-800"><HelpCircle size={14} /> Model answer guidance</p>
-            <p className="text-sm leading-relaxed text-gray-700">{evaluation.ideal_answer}</p>
+            <p className="break-words text-sm leading-relaxed text-gray-700">{evaluation.ideal_answer}</p>
           </div>
         )}
       </section>
@@ -196,13 +196,13 @@ export default function Interview() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mx-auto max-w-5xl space-y-6">
-      <div className="flex flex-col gap-5 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
-        <div>
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mx-auto min-w-0 w-full max-w-5xl space-y-6">
+      <div className="flex min-w-0 flex-col gap-5 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
+        <div className="min-w-0">
           <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900">
             <MessageSquare className="text-brand-500" /> AI Mock Interview
           </h2>
-          <p className="text-sm text-gray-500">Five scored technical questions and three written HR questions, personalized to your profile.</p>
+          <p className="break-words text-sm text-gray-500">Five scored technical questions and three written HR questions, personalized to your profile.</p>
         </div>
         <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(10rem,0.8fr)_minmax(17rem,1.3fr)_minmax(12rem,1fr)_minmax(11rem,auto)] xl:items-start xl:gap-4">
           <label className="flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-gray-700">
@@ -262,7 +262,7 @@ export default function Interview() {
       {error && <div role="alert" className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 p-4 text-red-600"><AlertCircle size={20} /> {error}</div>}
 
       {currentQuestion && (
-        <div className="space-y-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-8">
+        <div className="min-w-0 space-y-6 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-8">
           <div className="space-y-3 border-b border-gray-100 pb-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -271,7 +271,7 @@ export default function Interview() {
                   {currentQuestion.type === 'technical_mcq' ? 'Technical MCQ' : 'HR / Written'}
                 </span>
               </div>
-              <span className="text-sm font-medium text-gray-400">Role: {targetRole}</span>
+              <span className="break-words text-sm font-medium text-gray-400">Role: {targetRole}</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-gray-100" aria-label="Interview progress">
               <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${((currentQIndex + 1) / questions.length) * 100}%` }} />
@@ -280,15 +280,15 @@ export default function Interview() {
 
           <div>
             {currentQuestion.skill && <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Focus: {currentQuestion.skill}</p>}
-            <h3 className="text-xl font-medium leading-snug text-gray-900">{currentQuestion.question}</h3>
-            {currentQuestion.code && <pre className="mt-4 overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">{currentQuestion.code}</pre>}
+            <h3 className="break-words text-xl font-medium leading-snug text-gray-900">{currentQuestion.question}</h3>
+            {currentQuestion.code && <pre className="mt-4 max-w-full overflow-x-auto rounded-lg bg-gray-900 p-3 text-sm text-gray-100 sm:p-4">{currentQuestion.code}</pre>}
           </div>
 
           {!currentEvaluation && currentQuestion.type === 'technical_mcq' && (
             <fieldset className="space-y-3" disabled={evaluating}>
               <legend className="sr-only">Select one answer</legend>
               {currentQuestion.options?.map((option) => (
-                <label key={option.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${currentAnswer === option.id ? 'border-brand-500 bg-brand-50' : 'border-gray-200 hover:border-brand-300'}`}>
+                <label key={option.id} className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${currentAnswer === option.id ? 'border-brand-500 bg-brand-50' : 'border-gray-200 hover:border-brand-300'}`}>
                   <input type="radio" name={`interview-question-${currentQIndex}`} value={option.id} checked={currentAnswer === option.id} onChange={() => updateAnswer(option.id)} className="mt-1 accent-brand-600" />
                   <span className="text-sm text-gray-800">{option.text}</span>
                 </label>
@@ -298,7 +298,7 @@ export default function Interview() {
 
           {!currentEvaluation && currentQuestion.type === 'hr' && (
             <textarea
-              className="input-modern min-h-[150px] resize-y"
+              className="input-modern min-h-[150px] w-full min-w-0 resize-y"
               placeholder="Share a concise, honest response. Use a real academic, project, or personal example where relevant."
               value={currentAnswer}
               onChange={(event) => updateAnswer(event.target.value)}
@@ -309,17 +309,17 @@ export default function Interview() {
           {showEvaluation(currentEvaluation)}
 
           {!currentEvaluation && (
-            <button onClick={submitAnswer} disabled={evaluating || (currentQuestion.type === 'technical_mcq' && !currentAnswer)} className="btn-modern flex w-full items-center justify-center gap-2">
+            <button onClick={submitAnswer} disabled={evaluating || (currentQuestion.type === 'technical_mcq' && !currentAnswer)} className="btn-modern flex min-h-11 w-full items-center justify-center gap-2">
               {evaluating ? <Loader className="animate-spin" size={20} /> : <><Send size={18} /> Submit answer</>}
             </button>
           )}
 
-          <div className="flex justify-between gap-3">
-            <button type="button" onClick={() => setCurrentQIndex((index) => Math.max(0, index - 1))} disabled={currentQIndex === 0 || evaluating} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 disabled:opacity-40">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
+            <button type="button" onClick={() => setCurrentQIndex((index) => Math.max(0, index - 1))} disabled={currentQIndex === 0 || evaluating} className="min-h-11 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 disabled:opacity-40 sm:w-auto">
               Previous
             </button>
             {currentEvaluation && (
-              <button type="button" onClick={() => setCurrentQIndex((index) => Math.min(questions.length, index + 1))} className="btn-modern">
+              <button type="button" onClick={() => setCurrentQIndex((index) => Math.min(questions.length, index + 1))} className="btn-modern min-h-11 w-full justify-center sm:w-auto">
                 {currentQIndex === questions.length - 1 ? 'View summary' : 'Next question'}
               </button>
             )}
@@ -328,7 +328,7 @@ export default function Interview() {
       )}
 
       {questions.length > 0 && currentQIndex === questions.length && completed && (
-        <div className="space-y-5 rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-sm">
+        <div className="min-w-0 space-y-5 rounded-2xl border border-gray-100 bg-white p-4 text-center shadow-sm sm:p-8">
           <CheckCircle className="mx-auto text-green-500" size={56} />
           <h3 className="text-2xl font-bold text-gray-900">Interview Session Complete</h3>
           <p className="text-gray-500">Your answers and feedback are saved to your interview history.</p>
@@ -348,7 +348,7 @@ export default function Interview() {
               ))}
             </ul>
           </div>
-          <button onClick={generateQuestions} className="btn-modern mt-2">Start New Session</button>
+          <button onClick={generateQuestions} className="btn-modern mt-2 min-h-11 w-full justify-center sm:w-auto">Start New Session</button>
         </div>
       )}
     </motion.div>

@@ -103,14 +103,14 @@ export default function Practice() {
   const allAnswered = answeredCount === questions.length;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto min-w-0 w-full max-w-4xl space-y-6">
       <header className="page-header">
         <div>
           <div className="soft-label mb-3">Lesson practice</div>
-          <h1 className="page-title">{practice.skill_id}</h1>
-          <p className="page-subtitle mt-2">Apply the ideas from this lesson. Practice answers are saved separately from lesson completion and do not represent skill mastery.</p>
+          <h1 className="page-title break-words">{practice.skill_id}</h1>
+          <p className="page-subtitle mt-2 break-words">Apply the ideas from this lesson. Practice answers are saved separately from lesson completion and do not represent skill mastery.</p>
         </div>
-        <button type="button" onClick={returnToLesson} className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:text-brand-900">
+        <button type="button" onClick={returnToLesson} className="inline-flex min-h-11 w-full items-center justify-center gap-2 text-sm font-semibold text-brand-700 hover:text-brand-900 sm:w-auto">
           <ArrowLeft size={16} /> Back to lesson
         </button>
       </header>
@@ -122,12 +122,12 @@ export default function Practice() {
       )}
 
       <section className="panel-card space-y-5" aria-label="Practice questions">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Question {questionIndex + 1} of {questions.length}</p>
             <p className="mt-1 text-sm font-semibold text-slate-600">{answeredCount} of {questions.length} questions answered</p>
           </div>
-          <nav className="flex gap-2 overflow-x-auto" aria-label="Question navigation">
+          <nav className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1" aria-label="Question navigation">
             {questions.map((item, index) => (
               <button
                 key={item.question_id}
@@ -135,7 +135,7 @@ export default function Practice() {
                 onClick={() => { setQuestionIndex(index); setError(''); }}
                 aria-label={`Question ${index + 1}${practice.attempts?.[item.question_id] ? ', answered' : ''}`}
                 aria-current={index === questionIndex ? 'step' : undefined}
-                className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-sm font-semibold ${
+                className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border text-sm font-semibold ${
                   index === questionIndex ? 'border-brand-300 bg-brand-50 text-brand-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                 }`}
               >
@@ -149,20 +149,20 @@ export default function Practice() {
         <article className="space-y-5 border-t border-slate-100 pt-5">
           <div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">{question.type.replace('_', ' ')}</span>
-            <h2 className="mt-4 text-xl font-bold leading-8 text-slate-900">{question.prompt}</h2>
+            <h2 className="mt-4 break-words text-xl font-bold leading-8 text-slate-900">{question.prompt}</h2>
           </div>
           {question.code && (
-            <pre className="overflow-x-auto rounded-xl bg-slate-950 p-4 text-sm leading-6 text-slate-100"><code>{question.code}</code></pre>
+            <pre className="max-w-full overflow-x-auto rounded-xl bg-slate-950 p-3 text-sm leading-6 text-slate-100 sm:p-4"><code>{question.code}</code></pre>
           )}
           {question.starter_code && (
-            <pre className="overflow-x-auto rounded-xl bg-slate-950 p-4 text-sm leading-6 text-slate-100"><code>{question.starter_code}</code></pre>
+            <pre className="max-w-full overflow-x-auto rounded-xl bg-slate-950 p-3 text-sm leading-6 text-slate-100 sm:p-4"><code>{question.starter_code}</code></pre>
           )}
 
           {question.type === 'mcq' ? (
             <fieldset className="space-y-3">
               <legend className="sr-only">Select an answer</legend>
               {question.options.map((option) => (
-                <label key={option.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 text-sm text-slate-700 hover:border-brand-300">
+                <label key={option.id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 text-sm text-slate-700 hover:border-brand-300">
                   <input
                     type="radio"
                     name={`answer-${question.question_id}`}
@@ -184,7 +184,7 @@ export default function Practice() {
                 value={answers[question.question_id] || ''}
                 onChange={(event) => setAnswers((current) => ({ ...current, [question.question_id]: event.target.value }))}
                 placeholder={question.type === 'code_output' ? 'Enter the output...' : 'Explain your reasoning or write your solution...'}
-                className="w-full rounded-xl border border-slate-200 p-3 text-sm leading-6 text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                className="min-h-11 w-full min-w-0 rounded-xl border border-slate-200 p-3 text-sm leading-6 text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
               />
             </label>
           )}
@@ -202,16 +202,16 @@ export default function Practice() {
 
         {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p>}
 
-        <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
             onClick={() => { setQuestionIndex((index) => Math.max(0, index - 1)); setError(''); }}
             disabled={questionIndex === 0}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
           >
             <ArrowLeft size={16} /> Previous question
           </button>
-          <button type="button" onClick={submitAnswer} disabled={submitting} className="btn-modern">
+          <button type="button" onClick={submitAnswer} disabled={submitting} className="btn-modern min-h-11 w-full justify-center sm:w-auto">
             {submitting ? <Loader className="animate-spin" size={16} /> : attempt ? <RotateCcw size={16} /> : <CheckCircle2 size={16} />}
             {submitting ? 'Saving answer...' : attempt ? 'Submit another attempt' : 'Check answer'}
           </button>
@@ -219,7 +219,7 @@ export default function Practice() {
             type="button"
             onClick={() => { setQuestionIndex((index) => Math.min(questions.length - 1, index + 1)); setError(''); }}
             disabled={questionIndex === questions.length - 1}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
           >
             Next question <ArrowRight size={16} />
           </button>

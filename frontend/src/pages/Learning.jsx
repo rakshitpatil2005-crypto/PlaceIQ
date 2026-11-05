@@ -227,12 +227,12 @@ export default function Learning() {
     : null;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto min-w-0 w-full max-w-5xl space-y-6">
       <header className="page-header">
         <div>
           <div className="soft-label mb-3"><BookOpen size={13} /> Skill learning</div>
           <h1 className="page-title">{course.skill_id}</h1>
-          <p className="page-subtitle mt-2">{course.content.introduction}</p>
+          <p className="page-subtitle mt-2 break-words">{course.content.introduction}</p>
         </div>
         <Link to="/roadmap" className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:text-brand-900">
           <ArrowLeft size={16} /> Back to roadmap
@@ -271,19 +271,19 @@ export default function Learning() {
       )}
 
       <section className="panel-card space-y-5" aria-label="Lesson progress">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Concept {lessonIndex + 1} of {lessons.length}</p>
-            <h2 className="mt-1 text-xl font-bold text-slate-900">{lesson.title}</h2>
+            <h2 className="mt-1 break-words text-xl font-bold text-slate-900">{lesson.title}</h2>
           </div>
-          <p className="text-sm font-semibold text-slate-600">{progress.completed} of {progress.total} lessons completed</p>
+          <p className="break-words text-sm font-semibold text-slate-600">{progress.completed} of {progress.total} lessons completed</p>
         </div>
 
         <div className="h-2 overflow-hidden rounded-full bg-slate-100" aria-label={`${progress.completed} of ${progress.total} lessons completed`}>
           <div className="h-full rounded-full bg-brand-500 transition-[width]" style={{ width: `${progress.total ? (progress.completed / progress.total) * 100 : 0}%` }} />
         </div>
 
-        <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Lesson navigation">
+        <nav className="flex max-w-full snap-x gap-2 overflow-x-auto overscroll-x-contain pb-2" aria-label="Lesson navigation">
           {lessons.map((item, index) => {
             const done = completedLessons.has(item.lesson_id);
             return (
@@ -292,7 +292,7 @@ export default function Learning() {
                 type="button"
                 onClick={() => selectLesson(index)}
                 aria-current={index === lessonIndex ? 'step' : undefined}
-                className={`flex min-w-fit items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium ${
+                className={`flex min-h-11 min-w-fit snap-start items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium ${
                   index === lessonIndex ? 'border-brand-300 bg-brand-50 text-brand-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                 }`}
               >
@@ -309,8 +309,8 @@ export default function Learning() {
           <div className="flex items-start gap-3">
             <div className="rounded-xl bg-white p-2 text-brand-700 shadow-sm"><Sparkles size={18} /></div>
             <div>
-              <h3 className="font-bold text-slate-900">Ask the Study Coach</h3>
-              <p className="mt-1 text-sm leading-6 text-slate-600">
+              <h3 className="break-words font-bold text-slate-900">Ask the Study Coach</h3>
+              <p className="mt-1 break-words text-sm leading-6 text-slate-600">
                 Ask about <span className="font-medium">{lesson.title}</span> or a related concept. Get a direct answer with useful detail, hints, or an example when they help. AI guidance can be inaccurate; check important details.
               </p>
             </div>
@@ -331,7 +331,7 @@ export default function Learning() {
                 })}
                 maxLength={120}
                 required
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                className="min-h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                 aria-describedby="coach-concept-help"
               />
               <p id="coach-concept-help" className="mt-1 text-xs text-slate-500">Choose the concept or topic your question is about.</p>
@@ -349,11 +349,11 @@ export default function Learning() {
                 })}
                 maxLength={500}
                 rows={3}
-                className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                className="min-h-24 w-full min-w-0 resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                 placeholder="Ask a question about this concept or a related topic."
               />
             </div>
-            <button type="submit" disabled={coachSubmitting} className="btn-modern disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="submit" disabled={coachSubmitting} className="btn-modern min-h-11 w-full justify-center sm:w-auto disabled:cursor-not-allowed disabled:opacity-60">
               {coachSubmitting ? <Loader className="animate-spin" size={16} /> : <Sparkles size={16} />}
               {coachSubmitting ? 'Preparing guidance...' : 'Ask the Study Coach'}
             </button>
@@ -377,12 +377,12 @@ export default function Learning() {
 
         {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p>}
 
-        <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:justify-between">
+        <div className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2 lg:flex lg:flex-wrap lg:justify-between">
           <button
             type="button"
             onClick={() => selectLesson(Math.max(0, lessonIndex - 1))}
             disabled={lessonIndex === 0}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 lg:w-auto"
           >
             <ArrowLeft size={16} /> Previous lesson
           </button>
@@ -390,7 +390,7 @@ export default function Learning() {
             type="button"
             onClick={updateLessonCompletion}
             disabled={saving}
-            className="btn-modern"
+            className="btn-modern min-h-11 w-full justify-center lg:w-auto"
           >
             {saving ? <Loader className="animate-spin" size={16} /> : isComplete ? <RotateCcw size={16} /> : <CheckCircle2 size={16} />}
             {saving ? 'Saving...' : isComplete ? 'Mark as not completed' : 'Mark lesson complete'}
@@ -399,7 +399,7 @@ export default function Learning() {
             type="button"
             onClick={startPractice}
             disabled={startingPractice}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm font-semibold text-brand-800 hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm font-semibold text-brand-800 hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60 lg:w-auto"
           >
             {startingPractice ? <Loader className="animate-spin" size={16} /> : <Sparkles size={16} />}
             {startingPractice ? 'Preparing practice...' : 'Practice this concept'}
@@ -408,7 +408,7 @@ export default function Learning() {
             type="button"
             onClick={startAssessment}
             disabled={startingAssessment}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-800 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-800 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60 lg:w-auto"
           >
             {startingAssessment ? <Loader className="animate-spin" size={16} /> : <ClipboardCheck size={16} />}
             {startingAssessment ? 'Preparing assessment...' : 'Assess this concept'}
@@ -417,7 +417,7 @@ export default function Learning() {
             type="button"
             onClick={() => selectLesson(Math.min(lessons.length - 1, lessonIndex + 1))}
             disabled={lessonIndex === lessons.length - 1}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 lg:w-auto"
           >
             Next lesson <ArrowRight size={16} />
           </button>

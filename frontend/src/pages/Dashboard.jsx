@@ -175,13 +175,13 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <Link to={journey.nextStage.path} className="btn-modern">
+        <Link to={journey.nextStage.path} className="btn-modern w-full justify-center sm:w-auto">
           {actionLabel}
           <ArrowRight size={16} />
         </Link>
       </header>
 
-      <div className="panel-card">
+      <div className="panel-card min-w-0">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="section-title">Placement journey</div>
           <div className="text-sm font-semibold text-slate-500">
@@ -191,7 +191,7 @@ export default function Dashboard() {
 
         <div className="grid gap-3 md:grid-cols-5">
           {journey.stages.map((stage, index) => (
-            <Link key={stage.label} to={stage.path} className={`rounded-2xl border p-3 transition-all ${stage.done ? 'border-brand-100 bg-brand-50' : 'border-slate-200 bg-slate-50/80'}`}>
+            <Link key={stage.label} to={stage.path} className={`min-w-0 rounded-2xl border p-3 transition-all ${stage.done ? 'border-brand-100 bg-brand-50' : 'border-slate-200 bg-slate-50/80'}`}>
               <div className="flex items-center justify-between gap-2">
                 <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Step {index + 1}</div>
                 {stage.done ? <CheckCircle2 size={16} className="text-brand-600" /> : <Circle size={16} className="text-slate-400" />}
@@ -221,17 +221,17 @@ export default function Dashboard() {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.12em] text-brand-700">{item.action}</p>
-                    <h3 className="mt-1 text-lg font-bold text-slate-900">{item.concept || item.skill_id}</h3>
-                    {item.concept && <p className="mt-1 text-xs font-medium text-slate-500">{item.skill_id}</p>}
+                    <h3 className="mt-1 break-words text-lg font-bold text-slate-900">{item.concept || item.skill_id}</h3>
+                    {item.concept && <p className="mt-1 break-words text-xs font-medium text-slate-500">{item.skill_id}</p>}
                   </div>
                   {item.context?.roadmap_week && (
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">Roadmap week {item.context.roadmap_week}</span>
                   )}
                 </div>
-                <p className="mt-3 text-sm leading-6 text-slate-700">{item.reason}</p>
-                <p className="mt-2 text-xs leading-5 text-slate-500">{item.evidence.join(' ')}</p>
-                <p className="mt-3 text-sm font-medium text-slate-700">{item.next_step}</p>
-                <Link to={item.href} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-brand-700 hover:text-brand-900">
+                <p className="mt-3 break-words text-sm leading-6 text-slate-700">{item.reason}</p>
+                <p className="mt-2 break-words text-xs leading-5 text-slate-500">{item.evidence.join(' ')}</p>
+                <p className="mt-3 break-words text-sm font-medium text-slate-700">{item.next_step}</p>
+                <Link to={item.href} className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-brand-700 hover:text-brand-900">
                   {recommendationLinkLabel(item.action)} <ArrowRight size={15} />
                 </Link>
               </article>
@@ -275,7 +275,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <div className="panel-card">
+        <div className="panel-card min-w-0">
           <div className="mb-4 flex items-center justify-between">
             <div className="section-title">Readiness overview</div>
             <BarChart3 className="h-5 w-5 text-brand-600" />
@@ -311,7 +311,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="panel-card">
+        <div className="panel-card min-w-0">
           <div className="mb-5 flex items-center justify-between">
             <div className="section-title">Your next step</div>
             <Gauge className="h-5 w-5 text-brand-600" />

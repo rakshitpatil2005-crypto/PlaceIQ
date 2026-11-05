@@ -1,7 +1,12 @@
 import axios from 'axios';
 
+const defaultApiUrl =
+  import.meta.env.DEV && typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.hostname}:8000`
+    : 'http://localhost:8000';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_API_URL || defaultApiUrl,
 });
 
 // Automatically attach JWT token
@@ -17,7 +22,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
+    if (error.response?.status === 401 && error.config?.url !== '/auth/login') {
       localStorage.removeItem('token');
       window.location.href = '/login';
     }

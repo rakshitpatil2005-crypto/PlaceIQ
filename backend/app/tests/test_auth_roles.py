@@ -166,6 +166,105 @@ def test_placement_staff_cannot_use_admin_provisioning_endpoint(role_app: dict) 
         )
 
 
+def test_registration_login_and_invalid_credentials(
+    role_app: dict,
+    monkeypatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = role_app["client"]
+    monkeypatch.setattr(
+        "app.routers.auth_router.verify_password",
+        lambda plain, hashed: plain == "correct-test-password"
+        and hashed == "hashed-test-password",
+    )
+
+    registration = client.post(
+        "/auth/register",
+        json={
+            "name": "Login Test Student",
+            "email": "login-test@example.com",
+            "password": "correct-test-password",
+            "branch": "CSE",
+            "semester": 6,
+        },
+    )
+    assert registration.status_code == 201
+
+    login = client.post(
+        "/auth/login",
+        json={
+            "email": "login-test@example.com",
+            "password": "correct-test-password",
+        },
+    )
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+    profile = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert profile.status_code == 200
+    assert profile.json()["email"] == "login-test@example.com"
+    assert profile.json()["role"] == "student"
+
+    caplog.set_level("WARNING", logger="app.routers.auth_router")
+    invalid_password = client.post(
+        "/auth/login",
+        json={
+            "email": "login-test@example.com",
+            "password": "incorrect-test-password",
+        },
+    )
+    unknown_email = client.post(
+        "/auth/login",
+        json={
+            "email": "missing-login@example.com",
+            "password": "correct-test-password",
+        },
+    )
+    assert invalid_password.status_code == unknown_email.status_code == 401
+    assert [record.message for record in caplog.records] == [
+        "Login rejected: reason=password_mismatch",
+        "Login rejected: reason=unknown_email",
+    ]
+    assert "login-test@example.com" not in caplog.text
+    assert "incorrect-test-password" not in caplog.text
+    assert "hashed-test-password" not in caplog.text
+
+
+def test_duplicate_registration_returns_400_without_changing_existing_account(
+    role_app: dict,
+) -> None:
+    client = role_app["client"]
+    payload = {
+        "name": "Original Test Account",
+        "email": "duplicate-test@example.com",
+        "password": "original-test-password",
+        "branch": "CSE",
+        "semester": 5,
+    }
+    assert client.post("/auth/register", json=payload).status_code == 201
+
+    duplicate = client.post(
+        "/auth/register",
+        json={
+            "name": "Replacement Name",
+            "email": payload["email"],
+            "password": "replacement-test-password",
+            "branch": "ECE",
+            "semester": 8,
+        },
+    )
+
+    assert duplicate.status_code == 400
+    assert duplicate.json()["detail"] == "Email already registered"
+    with role_app["factory"]() as db:
+        accounts = db.query(User).filter_by(email=payload["email"]).all()
+        assert len(accounts) == 1
+        account = accounts[0]
+        assert account.name == payload["name"]
+        assert account.hashed_password == "hashed-test-password"
+        assert account.branch == payload["branch"]
+        assert account.semester == payload["semester"]
+
+
 @pytest.mark.parametrize("active", [True, False])
 def test_provisioning_nonexistent_user_returns_404_without_changing_roles(
     role_app: dict,

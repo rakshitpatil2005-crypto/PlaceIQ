@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, User, BookOpen, GraduationCap, ArrowRight, Sparkles, TrendingUp, Briefcase, ShieldCheck } from 'lucide-react';
 import api from '../api';
 import { SUPPORTED_ROLES } from '../data/roles';
+import { getAuthenticationErrorMessage } from '../utils/authError';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -60,7 +61,7 @@ export default function Login() {
 
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Authentication failed');
+      setError(getAuthenticationErrorMessage(err));
     } finally {
       setLoading(false);
     }

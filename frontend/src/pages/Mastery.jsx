@@ -52,7 +52,7 @@ export default function Mastery() {
   const skills = mastery?.skills || [];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto min-w-0 w-full max-w-6xl space-y-6">
       <header className="page-header">
         <div>
           <div className="soft-label mb-3"><Award size={14} /> Skill mastery</div>
@@ -61,9 +61,9 @@ export default function Mastery() {
         </div>
       </header>
 
-      <section className="panel-card border-brand-100 bg-brand-50/60" aria-label="Mastery scoring policy">
+      <section className="panel-card min-w-0 border-brand-100 bg-brand-50/60" aria-label="Mastery scoring policy">
         <h2 className="font-bold text-slate-900">How this is calculated</h2>
-        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700">
+        <ul className="mt-3 list-disc space-y-2 break-words pl-5 text-sm leading-6 text-slate-700">
           <li>{mastery.policy.evidence}</li>
           <li>{mastery.policy.weighting}</li>
           <li>{mastery.policy.minimum_evidence}</li>
@@ -71,7 +71,7 @@ export default function Mastery() {
           <li>{mastery.policy.concepts}</li>
           <li>{mastery.policy.practice_and_interviews}</li>
         </ul>
-        <p className="mt-3 border-t border-brand-100 pt-3 text-xs leading-5 text-slate-600">{mastery.notice}</p>
+        <p className="mt-3 break-words border-t border-brand-100 pt-3 text-xs leading-5 text-slate-600">{mastery.notice}</p>
       </section>
 
       {!skills.length ? (
@@ -83,15 +83,15 @@ export default function Mastery() {
       ) : (
         <div className="space-y-5">
           {skills.map((skill) => (
-            <article key={skill.skill_id} className="panel-card space-y-5">
-              <header className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">{skill.skill_id}</h2>
+            <article key={skill.skill_id} className="panel-card min-w-0 space-y-5">
+              <header className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h2 className="break-words text-xl font-bold text-slate-900">{skill.skill_id}</h2>
                   <p className="mt-1 text-sm text-slate-600">
                     {skill.evidence_assessments} submitted assessment{skill.evidence_assessments === 1 ? '' : 's'} · {skill.evidence_correct}/{skill.evidence_questions} correct answers
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="text-left sm:text-right">
                   <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusClasses(skill.status)}`}>
                     {masteryStatusLabel(skill.status)}
                   </span>
@@ -109,7 +109,7 @@ export default function Mastery() {
                     <ul className="mt-3 space-y-2">
                       {skill.concepts.map((concept) => (
                         <li key={concept.concept} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 p-3">
-                          <span className="text-sm text-slate-700">{concept.concept}</span>
+                          <span className="min-w-0 break-words text-sm text-slate-700">{concept.concept}</span>
                           <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusClasses(concept.status)}`}>
                             {concept.score_pct === null ? masteryStatusLabel(concept.status) : `${formatMasteryScore(concept.score_pct)} · ${masteryStatusLabel(concept.status)}`}
                           </span>
@@ -124,17 +124,17 @@ export default function Mastery() {
                   {skill.history.length ? (
                     <ol className="mt-3 space-y-2">
                       {skill.history.map((item, index) => (
-                        <li key={item.assessment_id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 p-3">
-                          <div>
+                        <li key={item.assessment_id} className="flex min-w-0 flex-col gap-3 rounded-xl border border-slate-100 p-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
                             <p className="text-sm font-medium text-slate-800">Assessment {index + 1}</p>
-                            <p className="text-xs text-slate-500">
+                            <p className="break-words text-xs text-slate-500">
                               {item.submitted_at ? new Date(item.submitted_at).toLocaleString() : 'Submission date unavailable'} · {item.evidence_assessments} attempt{item.evidence_assessments === 1 ? '' : 's'}, {item.evidence_questions} answer{item.evidence_questions === 1 ? '' : 's'}
                             </p>
                             <Link to={`/assessment/${item.assessment_id}`} className="mt-1 inline-block text-xs font-semibold text-brand-700 underline underline-offset-2">
                               Review assessment
                             </Link>
                           </div>
-                          <div className="text-right">
+                          <div className="text-left sm:text-right">
                             <p className="font-semibold text-slate-800">
                               {formatMasteryScore(item.evidence_score_pct)}
                             </p>

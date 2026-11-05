@@ -27,7 +27,7 @@ export default function SkillGap() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="min-w-0 space-y-6">
       <div className="page-header">
         <div>
           <div className="soft-label mb-3">
@@ -38,8 +38,8 @@ export default function SkillGap() {
           <p className="page-subtitle mt-2">Select your ideal role to compare your profile against VTU curriculum coverage and missing placement skills.</p>
         </div>
 
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-          <select value={role} onChange={(e) => setRole(e.target.value)} className="input-modern min-w-[240px]">
+        <div className="flex w-full min-w-0 flex-col gap-3 sm:w-auto sm:flex-row">
+          <select value={role} onChange={(e) => setRole(e.target.value)} className="input-modern min-w-0 sm:min-w-[240px]">
             <option value="Embedded Systems Engineer">Embedded Systems Engineer</option>
             <option value="Backend Developer">Backend Developer</option>
             <option value="Frontend Developer">Frontend Developer</option>
@@ -47,7 +47,7 @@ export default function SkillGap() {
             <option value="Full Stack Developer">Full Stack Developer</option>
             <option value="ML Engineer">ML Engineer</option>
           </select>
-          <button onClick={analyzeGap} disabled={loading} className="btn-modern whitespace-nowrap">
+          <button onClick={analyzeGap} disabled={loading} className="btn-modern min-h-11 w-full justify-center whitespace-nowrap sm:w-auto">
             {loading ? 'Analyzing...' : 'Run gap analysis'}
             {!loading && <ArrowRight size={16} />}
           </button>
@@ -65,11 +65,11 @@ export default function SkillGap() {
         <div className="space-y-6">
           <div className="panel-card text-center">
             <div className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">Overall match for {report.target_role}</div>
-            <div className="mt-3 text-6xl font-black tracking-tight text-brand-600">{report.skill_match_pct}%</div>
+            <div className="mt-3 break-words text-5xl font-black tracking-tight text-brand-600 sm:text-6xl">{report.skill_match_pct}%</div>
           </div>
 
           <div className="grid gap-6 md:grid-cols-3">
-            <div className="panel-card md:col-span-1">
+            <div className="panel-card min-w-0 md:col-span-1">
               <div className="mb-4 flex items-center gap-2 text-slate-900">
                 <CheckCircle2 className="text-blue-500" size={20} />
                 <h3 className="text-lg font-bold">VTU coverage & resume fit</h3>
@@ -77,7 +77,7 @@ export default function SkillGap() {
               <div className="space-y-3">
                 {report.covered_by_syllabus?.map((item, i) => (
                   <div key={i} className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
-                    <div className="font-semibold text-blue-900">{item.skill}</div>
+                    <div className="break-words font-semibold text-blue-900">{item.skill}</div>
                     <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-blue-700">{item.status}</div>
                   </div>
                 ))}
@@ -90,7 +90,7 @@ export default function SkillGap() {
               </div>
             </div>
 
-            <div className="panel-card md:col-span-2">
+            <div className="panel-card min-w-0 md:col-span-2">
               <div className="mb-4 flex items-center gap-2 text-slate-900">
                 <XCircle className="text-red-500" size={20} />
                 <h3 className="text-lg font-bold">Critical missing skills</h3>
@@ -98,9 +98,9 @@ export default function SkillGap() {
               <p className="mb-4 text-sm text-slate-500">These are the gaps that still need attention for this target role.</p>
               <div className="grid gap-3 sm:grid-cols-2">
                 {report.missing?.map((item, i) => (
-                  <div key={i} className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 p-3">
+                  <div key={i} className="flex min-w-0 items-start gap-3 rounded-2xl border border-red-100 bg-red-50 p-3">
                     <AlertCircle size={18} className="text-red-500" />
-                    <span className="font-medium text-red-900">{item.skill}</span>
+                    <span className="min-w-0 break-words font-medium text-red-900">{item.skill}</span>
                   </div>
                 ))}
               </div>

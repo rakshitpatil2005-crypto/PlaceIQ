@@ -83,7 +83,7 @@ export default function Readiness() {
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="min-w-0 space-y-6">
       <div className="page-header">
         <div>
           <div className="soft-label mb-3">
@@ -94,7 +94,7 @@ export default function Readiness() {
           <p className="page-subtitle mt-2">A clear summary of how prepared you are for your target role based on resume quality, skill alignment, roadmap progress, and interview performance.</p>
         </div>
 
-        <Link to="/gap" className="btn-modern">
+        <Link to="/gap" className="btn-modern min-h-11 w-full justify-center sm:w-auto">
           View Skill Gap
           <ArrowRight size={16} />
         </Link>
@@ -107,7 +107,7 @@ export default function Readiness() {
         </div>
       )}
 
-      <div className="panel-card">
+      <div className="panel-card min-w-0">
         <div className="flex flex-col items-center gap-5 text-center md:flex-row md:justify-between md:text-left">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Overall score</div>
@@ -137,9 +137,9 @@ export default function Readiness() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metricCards.map(({ label, value, weight, tone, border }) => (
-          <div key={label} className={`panel-card border ${border}`}>
+          <div key={label} className={`panel-card min-w-0 border ${border}`}>
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm text-slate-500">{label}</span>
               <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600">{weight}</span>
@@ -155,8 +155,8 @@ export default function Readiness() {
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="panel-card">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-2">
+        <div className="panel-card min-w-0">
           <div className="mb-4 flex items-center gap-2 text-slate-900">
             <Lightbulb size={18} className="text-amber-500" />
             <h3 className="text-lg font-bold">What is helping your score</h3>
@@ -170,7 +170,7 @@ export default function Readiness() {
           </ul>
         </div>
 
-        <div className="panel-card">
+        <div className="panel-card min-w-0">
           <div className="mb-4 flex items-center gap-2 text-slate-900">
             <Target size={18} className="text-brand-600" />
             <h3 className="text-lg font-bold">What is lowering your score</h3>
@@ -187,7 +187,7 @@ export default function Readiness() {
         </div>
       </div>
 
-      <div className="panel-card">
+      <div className="panel-card min-w-0">
         <div className="mb-4 flex items-center gap-2 text-slate-900">
           <Sparkles size={18} className="text-emerald-600" />
           <h3 className="text-lg font-bold">Recommended next action</h3>
@@ -199,22 +199,22 @@ export default function Readiness() {
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Link to="/gap" className="btn-modern">
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <Link to="/gap" className="btn-modern min-h-11 w-full justify-center sm:w-auto">
             View Skill Gap
           </Link>
-          <Link to="/roadmap" className="btn-modern secondary-style">
+          <Link to="/roadmap" className="btn-modern secondary-style min-h-11 w-full justify-center sm:w-auto">
             Continue Roadmap
           </Link>
         </div>
       </div>
 
       {history.length > 0 && (
-        <div className="panel-card">
+        <div className="panel-card min-w-0">
           <div className="mb-4 text-lg font-bold text-slate-900">Readiness history</div>
           <div className="space-y-3">
             {history.slice(0, 5).map((item) => (
-              <div key={item.id} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+              <div key={item.id} className="flex flex-col items-start justify-between gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 sm:flex-row sm:items-center">
                 <span>{new Date(item.created_at).toLocaleDateString()}</span>
                 <span className="font-bold text-slate-900">{item.total}/100</span>
               </div>

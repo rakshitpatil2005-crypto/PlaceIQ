@@ -412,8 +412,8 @@
   justify-content: center;
 }
 
-.mobile-sidebar-trigger,
-.sidebar-overlay {
+.mobile-bottom-nav,
+.mobile-more-layer {
   display: none;
 }
 
@@ -683,103 +683,203 @@
     display: block;
   }
 
-  .mobile-sidebar-trigger {
-    position: sticky;
-    top: 0;
-    z-index: 30;
-    display: flex;
-    height: 3.65rem;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 1rem;
-    border-bottom: 1px solid var(--panel-border);
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(14px);
+  .sidebar {
+    display: none;
   }
 
-  .mobile-menu-button {
+  .mobile-bottom-nav {
+    position: fixed;
+    z-index: 30;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.15rem;
+    padding: 0.35rem 0.35rem calc(0.35rem + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(220, 227, 239, 0.96);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -8px 28px rgba(29, 43, 71, 0.09);
+    backdrop-filter: blur(18px);
+  }
+
+  .mobile-tab {
+    display: flex;
+    min-width: 0;
+    min-height: 48px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.18rem;
+    padding: 0.22rem 0.1rem;
+    border: 0;
+    border-radius: 0.8rem;
+    color: #64748b;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.65rem;
+    font-weight: 650;
+    line-height: 1;
+    text-align: center;
+    text-decoration: none;
+    transition: color 140ms ease, background 140ms ease;
+  }
+
+  .mobile-tab.active {
+    color: var(--indigo-700);
+    background: #eef2ff;
+  }
+
+  .mobile-tab:active {
+    background: #e0e7ff;
+  }
+
+  .mobile-more-layer {
+    position: fixed;
+    z-index: 50;
+    inset: 0;
+    display: block;
+  }
+
+  .mobile-more-backdrop {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: rgba(12, 20, 38, 0.5);
+    backdrop-filter: blur(2px);
+  }
+
+  .mobile-more-sheet {
+    position: absolute;
+    right: 0.55rem;
+    bottom: calc(4.75rem + env(safe-area-inset-bottom));
+    left: 0.55rem;
+    max-height: min(70vh, 640px);
+    max-height: min(70dvh, 640px);
+    overflow-y: auto;
+    padding: 1.15rem;
+    border: 1px solid rgba(225, 231, 241, 0.96);
+    border-radius: 1.3rem;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(17, 26, 47, 0.24);
+    overscroll-behavior: contain;
+  }
+
+  .mobile-more-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .mobile-more-eyebrow {
+    color: var(--indigo-700);
+    font-size: 0.68rem;
+    font-weight: 750;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .mobile-more-heading h2 {
+    margin-top: 0.2rem;
+    color: var(--navy-950);
+    font-size: 1.1rem;
+    font-weight: 750;
+    letter-spacing: -0.025em;
+  }
+
+  .mobile-more-close {
     display: inline-flex;
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 48px;
+    height: 48px;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: center;
     border: 1px solid var(--panel-border);
-    border-radius: 0.75rem;
+    border-radius: 0.85rem;
     color: var(--navy-800);
     background: white;
   }
 
-  .mobile-sidebar-brand {
+  .mobile-more-hint {
+    margin: 0.75rem 0 0.9rem;
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.5;
+  }
+
+  .mobile-more-links {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .mobile-more-link,
+  .mobile-plan-status,
+  .mobile-logout {
     display: flex;
+    min-height: 48px;
     align-items: center;
-    gap: 0.6rem;
-    color: var(--navy-950);
-    font-weight: 750;
+    gap: 0.75rem;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid transparent;
+    border-radius: 0.85rem;
+    color: var(--navy-800);
+    background: #f8faff;
+    font-size: 0.88rem;
+    font-weight: 650;
+    text-decoration: none;
   }
 
-  .mobile-sidebar-brand .brand-mark {
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 0.7rem;
+  .mobile-more-link:hover,
+  .mobile-more-link:focus-visible,
+  .mobile-more-link.active {
+    border-color: #c7d2fe;
+    color: var(--indigo-700);
+    background: #eef2ff;
   }
 
-  .sidebar {
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    display: flex;
-    width: min(86vw, 300px);
-    min-height: 0;
-    box-shadow: 18px 0 40px rgba(17, 26, 47, 0.24);
-    visibility: hidden;
-    transform: translateX(-102%);
-    transition: transform 220ms ease, visibility 220ms ease;
+  .mobile-more-icon {
+    display: inline-flex;
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.65rem;
+    color: var(--indigo-700);
+    background: #e8edff;
   }
 
-  .sidebar.mobile-open {
-    visibility: visible;
-    transform: translateX(0);
+  .mobile-more-arrow {
+    margin-left: auto;
+    color: #94a3b8;
   }
 
-  .sidebar-overlay {
-    position: fixed;
-    z-index: 35;
-    inset: 0;
-    display: block;
+  .mobile-more-footer {
+    display: grid;
+    gap: 0.45rem;
+    margin-top: 0.8rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--panel-border);
+  }
+
+  .mobile-plan-status {
+    color: #3730a3;
+    background: #eef2ff;
+  }
+
+  .mobile-logout {
+    width: 100%;
     border: 0;
-    opacity: 1;
-    background: rgba(10, 17, 32, 0.5);
-    backdrop-filter: blur(2px);
-  }
-
-  .sidebar-collapse {
-    display: none;
-  }
-
-  .sidebar.collapsed .sidebar-section-label,
-  .sidebar.collapsed .sidebar-link-label,
-  .sidebar.collapsed .sidebar-bottom-label,
-  .sidebar.collapsed .brand-copy {
-    display: block;
-  }
-
-  .sidebar.collapsed .sidebar-brand {
-    justify-content: flex-start;
-    padding-inline: 0.55rem;
-  }
-
-  .sidebar.collapsed .sidebar-link,
-  .sidebar.collapsed .sidebar-control,
-  .sidebar.collapsed .sidebar-plan,
-  .sidebar.collapsed .sidebar-user {
-    justify-content: flex-start;
-    gap: 0.8rem;
-    padding-inline: 0.8rem;
+    color: #475569;
+    cursor: pointer;
+    text-align: left;
   }
 
   .app-main {
-    padding: 1.25rem 0.9rem 2.25rem;
+    padding: 1.25rem 0.9rem calc(6rem + env(safe-area-inset-bottom));
   }
 
   .page-header {
@@ -793,6 +893,13 @@
 
   .metric-card {
     grid-column: span 12;
+  }
+}
+
+@media (max-width: 767px) and (max-height: 600px) {
+  .mobile-more-sheet {
+    max-height: min(62vh, 640px);
+    max-height: min(62dvh, 640px);
   }
 }
 

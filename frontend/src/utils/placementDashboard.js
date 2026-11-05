@@ -25,6 +25,34 @@ export function getNavigationItems(role) {
   return items;
 }
 
+const MOBILE_PRIMARY_PATHS = ['/dashboard', '/roadmap', '/learn', '/resume'];
+
+export function getMobilePrimaryItems(role) {
+  const shortLabels = {
+    '/dashboard': 'Dashboard',
+    '/roadmap': 'Roadmap',
+    '/learn': 'Learn',
+    '/resume': 'Resume',
+  };
+  const items = getNavigationItems(role);
+  return MOBILE_PRIMARY_PATHS
+    .map((path) => items.find((item) => item.path === path))
+    .filter(Boolean)
+    .map((item) => ({ ...item, shortLabel: shortLabels[item.path] }));
+}
+
+export function getMobileMoreItems(role) {
+  return getNavigationItems(role)
+    .filter((item) => !MOBILE_PRIMARY_PATHS.includes(item.path));
+}
+
+export function isNavigationItemActive(pathname, path) {
+  return pathname === path
+    || (path === '/placement' && pathname.startsWith('/placement/students/'))
+    || (path === '/learn'
+      && (pathname.startsWith('/practice/') || pathname.startsWith('/assessment/')));
+}
+
 export function buildPlacementQuery(filters, page = 1, pageSize = 25, sortBy = 'name', sortOrder = 'asc') {
   const params = { page, page_size: pageSize, sort_by: sortBy, sort_order: sortOrder };
   if (filters.branch.trim()) params.branch = filters.branch.trim();

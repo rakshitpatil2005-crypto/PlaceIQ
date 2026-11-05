@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
@@ -13,6 +15,7 @@ from app.auth import (
 )
 
 router = APIRouter(prefix="/auth")
+logger = logging.getLogger(__name__)
 
 class UserCreate(BaseModel):
     name: str
@@ -54,7 +57,11 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login")
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == credentials.email).first()
-    if not user or not verify_password(credentials.password, user.hashed_password):
+    if not user:
+        logger.warning("Login rejected: reason=unknown_email")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not verify_password(credentials.password, user.hashed_password):
+        logger.warning("Login rejected: reason=password_mismatch")
         raise HTTPException(status_code=401, detail="Invalid email or password")
         
     access_token = create_access_token(data={"sub": str(user.id)})

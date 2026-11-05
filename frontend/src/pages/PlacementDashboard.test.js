@@ -15,17 +15,35 @@ async function loadPlacementModules() {
   });
   const page = await vite.ssrLoadModule('/src/pages/PlacementDashboard.jsx');
   const helpers = await vite.ssrLoadModule('/src/utils/placementDashboard.js');
-  return { vite, ...page, PlacementDashboard: page.default, ...helpers };
+  const navigation = await vite.ssrLoadModule('/src/components/Navbar.jsx');
+  return {
+    vite,
+    ...page,
+    PlacementDashboard: page.default,
+    ...helpers,
+    ...navigation,
+  };
 }
 
-function renderView(View, props) {
+function renderView(View, props, initialPath = '/') {
   return renderToStaticMarkup(
-    React.createElement(MemoryRouter, null, React.createElement(View, props)),
+    React.createElement(
+      MemoryRouter,
+      { initialEntries: [initialPath] },
+      React.createElement(View, props),
+    ),
   );
 }
 
-test('placement navigation is staff/admin-only and routes do not replace the student dashboard', async () => {
-  const { vite, isPlacementStaffRole, getNavigationItems } = await loadPlacementModules();
+test('desktop navigation and role-filtered mobile destinations retain existing routes', async () => {
+  const {
+    vite,
+    isPlacementStaffRole,
+    getNavigationItems,
+    getMobilePrimaryItems,
+    getMobileMoreItems,
+    isNavigationItemActive,
+  } = await loadPlacementModules();
   try {
     assert.equal(isPlacementStaffRole('student'), false);
     assert.equal(isPlacementStaffRole('placement_staff'), true);
@@ -39,6 +57,21 @@ test('placement navigation is staff/admin-only and routes do not replace the stu
     assert.ok(staffItems.includes('Placement Cell'));
     assert.ok(adminItems.includes('Placement Cell'));
 
+    const frequentItems = getMobilePrimaryItems('student');
+    assert.deepEqual(frequentItems.map(({ path }) => path), ['/dashboard', '/roadmap', '/learn', '/resume']);
+    assert.ok(!getMobileMoreItems('student').some(({ path }) => path === '/placement'));
+    assert.ok(getMobileMoreItems('placement_staff').some(({ path }) => path === '/placement'));
+    assert.ok(getMobileMoreItems('admin').some(({ path }) => path === '/placement'));
+    assert.ok(getMobileMoreItems('student').some(({ path }) => path === '/gap'));
+    assert.ok(getMobileMoreItems('student').some(({ path }) => path === '/mastery'));
+    assert.ok(getMobileMoreItems('student').some(({ path }) => path === '/interview'));
+    assert.ok(getMobileMoreItems('student').some(({ path }) => path === '/readiness'));
+    assert.ok(getMobileMoreItems('student').some(({ path }) => path === '/premium'));
+    assert.ok(isNavigationItemActive('/practice/session-123', '/learn'));
+    assert.ok(isNavigationItemActive('/assessment/assessment-123', '/learn'));
+    assert.ok(isNavigationItemActive('/placement/students/42', '/placement'));
+    assert.ok(!getNavigationItems('student').some(({ path }) => path.includes(':sessionId') || path.includes(':assessmentId')));
+
     const appSource = await readFile(new URL('../App.jsx', import.meta.url), 'utf8');
     const navbarSource = await readFile(new URL('../components/Navbar.jsx', import.meta.url), 'utf8');
     assert.match(appSource, /<Route path="\/dashboard" element={<Dashboard \/>} \/>/);
@@ -47,18 +80,71 @@ test('placement navigation is staff/admin-only and routes do not replace the stu
     assert.match(navbarSource, /getNavigationItems\(role\)/);
     assert.match(navbarSource, /aria-label="Main navigation"/);
     assert.match(navbarSource, /aria-label=\{collapsed \? 'Expand navigation' : 'Collapse navigation'\}/);
-    assert.match(navbarSource, /aria-label="Open navigation menu"/);
+    assert.match(navbarSource, /aria-label="Primary navigation"/);
+    assert.match(navbarSource, /aria-label="More navigation options"/);
+    assert.match(navbarSource, /event\.key === 'Escape'/);
+    assert.match(navbarSource, /onClick=\{\(\) => onClose\(true\)\}/);
     const styles = await readFile(new URL('../index.css', import.meta.url), 'utf8');
     assert.match(styles, /@media \(max-width: 767px\)/);
-    assert.match(styles, /\.sidebar\.mobile-open\s*\{[\s\S]*?transform: translateX\(0\)/);
+    assert.match(styles, /\.mobile-bottom-nav\s*\{[\s\S]*?position: fixed/);
+    assert.match(styles, /env\(safe-area-inset-bottom\)/);
+    assert.match(styles, /min-height: 48px/);
     assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
     const { default: Navbar } = await vite.ssrLoadModule('/src/components/Navbar.jsx');
-    const sidebarMarkup = renderView(Navbar, { collapsed: true, onCollapsedChange: () => {} });
+    const sidebarMarkup = renderView(Navbar, { collapsed: false, onCollapsedChange: () => {} }, '/dashboard');
     assert.match(sidebarMarkup, /aria-label="Main navigation"/);
-    assert.match(sidebarMarkup, /aria-label="Open navigation menu"/);
-    assert.match(sidebarMarkup, /aria-label="Expand navigation"/);
-    assert.match(sidebarMarkup, /title="Dashboard"/);
+    assert.match(sidebarMarkup, /class="sidebar "/);
+    assert.match(sidebarMarkup, /aria-label="Collapse navigation"/);
+    assert.match(sidebarMarkup, /aria-label="Primary navigation"/);
+    assert.match(sidebarMarkup, /aria-current="page" aria-label="Dashboard"/);
     assert.doesNotMatch(sidebarMarkup, /href="\/placement"/);
+  } finally {
+    await vite.close();
+  }
+});
+
+test('mobile More sheet is accessible and exposes only authorized existing destinations', async () => {
+  const { vite, MobileMoreMenu, getMobileMoreItems } = await loadPlacementModules();
+  try {
+    const callbacks = {
+      onClose: () => {},
+      onNavigate: () => {},
+      onLogout: () => {},
+    };
+    const studentMarkup = renderView(MobileMoreMenu, {
+      items: getMobileMoreItems('student').map((item) => ({
+        ...item,
+        active: item.path === '/gap',
+      })),
+      plan: 'free',
+      ...callbacks,
+    }, '/gap');
+    assert.match(studentMarkup, /role="dialog" aria-modal="true"/);
+    assert.match(studentMarkup, /id="mobile-more-title">More destinations/);
+    assert.match(studentMarkup, /Skill Gap/);
+    assert.match(studentMarkup, /Skill Mastery/);
+    assert.match(studentMarkup, /Interview/);
+    assert.match(studentMarkup, /Readiness/);
+    assert.match(studentMarkup, /Premium/);
+    assert.match(studentMarkup, /Practice and assessments open from lessons/);
+    assert.doesNotMatch(studentMarkup, /Placement Cell/);
+    assert.doesNotMatch(studentMarkup, /href="\/practice\/|href="\/assessment\//);
+
+    const staffMarkup = renderView(MobileMoreMenu, {
+      items: getMobileMoreItems('placement_staff'),
+      plan: 'premium',
+      ...callbacks,
+    });
+    const adminMarkup = renderView(MobileMoreMenu, {
+      items: getMobileMoreItems('admin'),
+      plan: 'premium',
+      ...callbacks,
+    });
+    assert.match(staffMarkup, /Placement Cell/);
+    assert.match(adminMarkup, /Placement Cell/);
+    assert.match(staffMarkup, /Premium access/);
+    assert.match(studentMarkup, /Core plan/);
+    assert.match(studentMarkup, /class="mobile-more-link active" aria-current="page"/);
   } finally {
     await vite.close();
   }

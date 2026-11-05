@@ -178,36 +178,36 @@ export default function Roadmap() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl mx-auto space-y-6">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mx-auto min-w-0 w-full max-w-5xl space-y-6">
       
       {/* Top Header & Role Selector */}
-      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
-        <div>
+      <div className="flex flex-col items-stretch justify-between gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6 md:flex-row md:items-center">
+        <div className="min-w-0">
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <Map className="text-brand-500" />
-            Personalized 6-Week Learning Roadmap
+            <span className="break-words">Personalized 6-Week Learning Roadmap</span>
           </h2>
-          <p className="text-sm text-gray-500">VTU curriculum-aligned learning plan prioritizing missing skills & prerequisites.</p>
+          <p className="break-words text-sm text-gray-500">VTU curriculum-aligned learning plan prioritizing missing skills & prerequisites.</p>
         </div>
         
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+        <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row md:w-auto md:flex-wrap">
           <select 
             value={selectedRole}
             onChange={(e) => setSelectedRole(e.target.value)}
-            className="input-modern"
+            className="input-modern min-w-0 sm:flex-1 md:min-w-[12rem]"
           >
             {ROLES.map(role => (
               <option key={role} value={role}>{role}</option>
             ))}
           </select>
 
-          <button onClick={handleGenerate} disabled={loading} className="btn-modern whitespace-nowrap min-w-[160px] flex justify-center items-center gap-2">
+          <button onClick={handleGenerate} disabled={loading} className="btn-modern min-h-11 w-full min-w-0 justify-center gap-2 whitespace-nowrap sm:flex-1 md:w-auto md:min-w-[160px]">
             {loading ? <Loader className="animate-spin" size={20} /> : <><Sparkles size={18} /> Generate Plan</>}
           </button>
           <button
             onClick={handleAdapt}
             disabled={adapting || loading || !roadmap}
-            className="whitespace-nowrap min-h-11 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-800 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-11 w-full min-w-0 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-800 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1 md:w-auto"
           >
             {adapting ? 'Adapting…' : 'Adapt future priorities'}
           </button>
@@ -228,13 +228,13 @@ export default function Roadmap() {
 
       {/* Progress Bar Card */}
       {roadmap && (
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-3">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2 text-gray-800 font-semibold">
+        <div className="min-w-0 space-y-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
+        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-2 font-semibold text-gray-800">
               <CheckSquare className="text-brand-500" size={20} />
-              <span>Roadmap Completion Progress</span>
+            <span className="break-words">Roadmap Completion Progress</span>
             </div>
-            <span className="text-sm font-bold text-brand-600 bg-brand-50 px-3 py-1 rounded-full">
+          <span className="max-w-full break-words rounded-full bg-brand-50 px-3 py-1 text-sm font-bold text-brand-600">
               {stats.completed} of {stats.total} Tasks ({stats.pct}%)
             </span>
           </div>
@@ -257,14 +257,14 @@ export default function Roadmap() {
               animate={{ opacity: 1, x: 0 }} 
               transition={{ delay: wIdx * 0.08 }}
               key={wIdx} 
-              className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4"
+              className="min-w-0 space-y-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-4 gap-2">
                 <div className="flex items-center gap-3">
                   <span className="bg-brand-600 text-white text-sm font-bold px-3.5 py-1.5 rounded-xl shadow-sm">
                     Week {weekData.week}
                   </span>
-                  <h3 className="text-lg font-semibold text-gray-800">{weekData.theme}</h3>
+                  <h3 className="break-words text-lg font-semibold text-gray-800">{weekData.theme}</h3>
                 </div>
                 <span className="text-xs text-gray-400 font-medium">
                   {weekData.tasks.filter(t => t.completed).length} / {weekData.tasks.length} Done
@@ -273,25 +273,30 @@ export default function Roadmap() {
               
               <div className="space-y-3">
                 {weekData.tasks.map((task, tIdx) => (
-                  <div 
+                  <div
                     key={tIdx} 
-                    onClick={() => toggleTask(wIdx, tIdx)}
-                    className={`flex items-start gap-3.5 p-4 rounded-xl cursor-pointer transition-all border ${
+                    className={`flex min-w-0 items-start gap-3 rounded-xl border p-3 transition-all sm:gap-3.5 sm:p-4 ${
                       task.completed ? 'bg-green-50/40 border-green-200' : 'bg-white hover:bg-gray-50/80 border-gray-100 shadow-2xs'
                     }`}
                   >
-                    <div className="mt-0.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => toggleTask(wIdx, tIdx)}
+                      aria-label={`${task.completed ? 'Mark incomplete' : 'Mark complete'}: ${cleanTaskText(task.task)}`}
+                      aria-pressed={Boolean(task.completed)}
+                      className="mt-0.5 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-100"
+                    >
                       {task.completed ? (
                         <CheckCircle2 className="text-green-500 fill-green-50" size={22} />
                       ) : (
                         <Circle className="text-gray-300 hover:text-gray-400" size={22} />
                       )}
-                    </div>
+                    </button>
                     
-                    <div className="space-y-1.5 flex-1">
+                    <div className="min-w-0 flex-1 space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
                         {getTaskTagBadge(task.task)}
-                        <span className={`text-sm font-medium ${task.completed ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
+                        <span className={`min-w-0 break-words text-sm font-medium ${task.completed ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
                           {cleanTaskText(task.task)}
                         </span>
                       </div>

@@ -28,3 +28,21 @@ backend/.env.*
 *.db-*
 *.sqlite
 *.sqlite3
+# Python test and coverage files
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE files
+.vscode/
+.idea/
+
+# Logs
+*.log
+# Database backups
+*.db-*
+*.sqlite*
+*.backup*
+
+# Project presentation
+*.pptx
