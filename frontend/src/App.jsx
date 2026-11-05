@@ -37,6 +37,13 @@ function RoleGate({ children }) {
   }
   return children;
 }
+function RootRedirect() {
+  localStorage.removeItem('token');
+  Object.keys(localStorage)
+    .filter((k) => k.startsWith('placeiq_'))
+    .forEach((k) => localStorage.removeItem(k));
+  return <Navigate to="/login" replace />;
+}
 function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   return (
@@ -46,6 +53,7 @@ function App() {
         <div className="orb orb-two" />
 
         <Routes>
+          <Route path="/" element={<RootRedirect />} />
           <Route path="/login" element={<Login />} />
 
           <Route
@@ -56,6 +64,7 @@ function App() {
                   <Navbar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
                   <main className="app-main">
                     <div className="content-shell">
+                      <RoleGate>
                       <Routes>
                         <Route path="/dashboard" element={<Dashboard />} />
                         <Route path="/resume" element={<ResumeUpload />} />
@@ -114,6 +123,7 @@ function App() {
                         />
                         <Route path="*" element={<Navigate to="/dashboard" />} />
                       </Routes>
+                      </RoleGate>
                     </div>
                   </main>
                 </div>
