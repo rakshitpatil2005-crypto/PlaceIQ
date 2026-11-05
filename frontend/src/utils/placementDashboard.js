@@ -13,7 +13,6 @@ export function getNavigationItems(role) {
     { path: '/resume', icon: FileText, label: 'Resume' },
     { path: '/gap', icon: Target, label: 'Skill Gap' },
     { path: '/roadmap', icon: Map, label: 'Roadmap' },
-    { path: '/learn', icon: Activity, label: 'Learn & Practice' },
     { path: '/mastery', icon: Award, label: 'Skill Mastery' },
     { path: '/interview', icon: MessagesSquare, label: 'Interview' },
     { path: '/readiness', icon: Sparkles, label: 'Readiness' },
